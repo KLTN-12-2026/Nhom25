@@ -1,0 +1,96 @@
+<app-navigation></app-navigation>
+
+<div class="post-container">
+
+
+    <div class="post-wrapper">
+        <button class="back-btn" routerLink="/pages/components/home-main">
+            <i class="fas fa-arrow-left"></i> Quay lại
+        </button>
+        <h3 class="post-title">QUẢN LÝ NGƯỜI DÙNG</h3>
+
+        <!-- Sort Section -->
+        <div class="post-filter">
+            <select class="post-sort-select" class="sort-select" (change)="onFilterChange($event.target.value)">
+                <option value="all">Tất cả</option>
+                <option value="active">Đang hoạt động</option>
+                <option value="banned">Bị khóa</option>
+            </select>
+        </div>
+
+        <!-- Approval Table -->
+        <table class="post-table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Tên đăng nhập</th>
+                    <th>Họ và tên</th>
+                    <th>Email</th>
+                    <th>Ngày tạo</th>
+                    <th>Thành viên</th>
+                    <th>Trạng thái</th>
+                    <th>Chức năng</th>
+                </tr>
+            </thead>
+            <!-- Add tbody here -->
+            <tbody>
+        <tr *ngFor="let item of users; index as i">
+          <td>{{i+1}}</td>
+          <td class="title-cell">{{item.userName}}</td>
+          <td class="title-cell">{{item.lastName}} {{item.firstName}}</td>
+          <td>{{item.email}}</td>
+          <td>{{item.createAt | date: 'short'}}</td>
+          <td [ngStyle]="{'color': FormatIsVipColor(item.vip)}">
+            <strong>{{FormatIsVip(item.vip)}}</strong>
+          </td>
+          <td [ngStyle]="{'color': FormatStatusColor(item.status)}">
+            <strong>{{FormatStatus(item.status)}}</strong>
+          </td>
+          <td class="btn-cell">
+            
+            <button (click)="getIdUser(item)" class="btn btn-danger btn-sm"
+              data-bs-toggle="modal" data-bs-target="#updateStatus">
+              <i class="fas fa-check-circle"></i> {{FormatUpdateButton(item.status)}}
+            </button>
+          </td>
+        </tr>
+      </tbody>
+      <tr *ngIf="noRecord === 0">
+        <td colspan="19">
+          <h5 style="padding: 20px 10px;" class="text-center validate-msg-color">Không có người dùng</h5>
+        </td>
+      </tr>
+    </table>
+    <div class="pagination" *ngIf="pages">
+      <button class="pagination-btn" (click)="previousPage()" [disabled]="currentPage === 0">Trước</button>
+      <div *ngFor="let page of pageRange">
+        <button class="pagination-btn" [class.active]="page === currentPage" (click)="goToPage(page)">{{ page +
+          1 }}</button>
+      </div>
+      <button class="pagination-btn" (click)="nextPage()" [disabled]="currentPage === totalPages - 1">Tiếp</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Duyet -->
+<div class="modal fade" id="updateStatus" tabindex="-1" aria-labelledby="duyetLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius: 12px;">
+      <div class="modal-header" style="background-color: #c2363f; color: white;">
+        <h5 class="modal-title" id="duyetLabel">Chỉnh sửa trạng thái</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"
+          style="filter: invert(1);"></button>
+      </div>
+      <form [formGroup]="userUpdateForm" (ngSubmit)="updateStatus()">
+        <div class="modal-body">
+          <p>Bạn có chắc chắn muốn cập nhật lại trạng thái của người dùng này không?</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-light" data-bs-dismiss="modal" style="color: #c2363f;">Hủy</button>
+          <button type="submit" class="btn btn-danger" style="background-color: #c2363f;" data-bs-dismiss="modal">Xác
+            nhận</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>

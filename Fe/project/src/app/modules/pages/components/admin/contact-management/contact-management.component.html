@@ -1,0 +1,122 @@
+<app-navigation></app-navigation>
+
+<div class="post-container">
+
+
+  <div class="post-wrapper">
+    <button class="back-btn" routerLink="/pages/components/home-main">
+      <i class="fas fa-arrow-left"></i> Quay lại
+    </button>
+    <h3 class="post-title">QUẢN LÝ LIÊN HỆ</h3>
+
+    <!-- Sort Section -->
+    <div class="search-section">
+      <select class="sort-select" class="sort-select" (change)="onFilterChange($event.target.value)">
+        <option value="all">Tất cả</option>
+        <option value="approved">Đã xử lý</option>
+        <option value="pending">Chưa xử lý</option>
+      </select>
+    </div>
+
+    <!-- Approval Table -->
+    <table class="post-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Nội dung</th>
+          <th>Ngày gửi</th>
+          <th>Trạng thái</th>
+          <th>Chức năng</th>
+        </tr>
+      </thead>
+      <!-- Add tbody here -->
+      <tbody>
+        <tr *ngFor="let item of contacts; index as i">
+          <td>{{i+1}}</td>
+          <td class="title-cell">{{item.content}}</td>
+          <td>{{item.dateSend | date: 'short'}}</td>
+          <td [ngStyle]="{'color': FormatStatusColor(item.status)}">
+            <strong>{{FormatStatus(item.status)}}</strong>
+          </td>
+          <td class="btn-cell">
+            <button class="btn btn-outline-danger btn-sm me-2" data-bs-toggle="modal" data-bs-target="#xem"
+              (click)="getIdBlog(item)">
+              <i class="fas fa-eye"></i> Xem
+            </button>
+            <button (click)="getIdBlog(item)" class="btn btn-danger btn-sm"
+              data-bs-toggle="modal" data-bs-target="#duyet">
+              <i class="fas fa-check-circle"></i> Duyệt
+            </button>
+          </td>
+
+        </tr>
+      </tbody>
+      <tr *ngIf="noRecord === 0">
+        <td colspan="19">
+          <h5 style="padding: 20px 10px;" class="text-center validate-msg-color">Không có bài viết nào</h5>
+        </td>
+      </tr>
+    </table>
+    <div class="pagination" *ngIf="pages">
+      <button class="pagination-btn" (click)="previousPage()" [disabled]="currentPage === 0">Trước</button>
+      <div *ngFor="let page of pageRange">
+        <button class="pagination-btn" [class.active]="page === currentPage" (click)="goToPage(page)">{{ page +
+          1 }}</button>
+      </div>
+      <button class="pagination-btn" (click)="nextPage()" [disabled]="currentPage === totalPages - 1">Tiếp</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Duyet -->
+<div class="modal fade" id="duyet" tabindex="-1" aria-labelledby="duyetLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius: 12px;">
+      <div class="modal-header" style="background-color: #c2363f; color: white;">
+        <h5 class="modal-title" id="duyetLabel">Chỉnh sửa trạng thái</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"
+          style="filter: invert(1);"></button>
+      </div>
+      <form [formGroup]="contactUpdateForm" (ngSubmit)="updateStatus()">
+        <div class="modal-body">
+          <p>Bạn có muốn chỉnh sửa trạng thái này không?</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-light" data-bs-dismiss="modal" style="color: #c2363f;">Hủy</button>
+          <button type="submit" class="btn btn-danger" style="background-color: #c2363f;" data-bs-dismiss="modal">Xác
+            nhận</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+
+<div class="modal fade" id="xem" tabindex="-1" aria-labelledby="xemLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius: 12px;">
+      <div class="modal-header" style="background-color: #c2363f; color: white;">
+        <h5 class="modal-title" id="xemLabel">
+          <strong>Xem chi tiết</strong>
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"
+          style="filter: invert(1);"></button>
+      </div>
+      <div class="modal-body">
+        <form [formGroup]="contactUpdateForm">
+          <p><strong>Người gửi: </strong> {{contactUpdateForm.value.user.firstName}}
+            {{contactUpdateForm.value.user.lastName}}</p>
+          <p><strong>Số điện thoại: </strong> {{contactUpdateForm.value.user.phone}}</p>
+          <p><strong>Ngày gửi: </strong> {{contactUpdateForm.value.dateSend | date: 'short'}}</p>
+          <p><strong>Nội dung: </strong>
+            <textarea id="content" formControlName="content" class="form-control" rows="5"
+              placeholder="Nhập nội dung liên hệ..."></textarea>
+          </p>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal" style="color: #c2363f;">Đóng</button>
+      </div>
+    </div>
+  </div>
+</div>

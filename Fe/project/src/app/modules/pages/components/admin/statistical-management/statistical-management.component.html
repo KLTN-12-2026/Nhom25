@@ -1,0 +1,32 @@
+<app-navigation></app-navigation>
+
+<div class="container">
+    <button class="back-btn" routerLink="/pages/components/home-main">
+        <i class="fas fa-arrow-left"></i> Quay lại
+    </button>
+    <div class="stats-box">
+        <div class="stat-item">
+            <h4>Tổng người đăng kí trong năm</h4>
+            <p>{{sumUser}}</p>
+        </div>
+        <div class="stat-item">
+            <h4>Tổng doanh thu trong năm</h4>
+            <p>{{sumPayment | currency: "VND"}} VNĐ</p>
+        </div>
+    </div>
+
+    <div class="year-selector">
+        <label for="year">Chọn năm:</label>
+        <select id="year" [(ngModel)]="selectedYear">
+            <option *ngFor="let year of yearList" [value]="year">{{ year }}</option>
+        </select>
+    </div>
+
+    <div class="chart-container">
+        <canvas id="LinechartTotal"></canvas>
+    </div>
+
+    <div class="chart-container taller-chart">
+        <canvas id="barChart"></canvas>
+    </div>
+</div>
