@@ -19,6 +19,11 @@ public class Participants {
     @ManyToOne
     @JoinColumn(name = "user_id")
     private User user;
+    @Column(name = "removed_from_meeting")
+    private Boolean removed;
+
+    public boolean isRemoved() { return Boolean.TRUE.equals(removed); }
+    public void setRemoved(boolean removed) { this.removed = removed; }
 
     public Participants() {
     }

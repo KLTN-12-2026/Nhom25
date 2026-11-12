@@ -27,6 +27,21 @@ public class Meeting {
     @ManyToOne
     @JoinColumn(name = "host_id")
     private User user;
+    @ManyToOne
+    @JoinColumn(name = "creator_id")
+    private User creator;
+    @ManyToOne
+    @JoinColumn(name = "co_host_id")
+    private User coHost;
+    @Column(name = "roles_version")
+    private Long rolesVersion;
+
+    public User getCreator() { return creator; }
+    public void setCreator(User creator) { this.creator = creator; }
+    public User getCoHost() { return coHost; }
+    public void setCoHost(User coHost) { this.coHost = coHost; }
+    public long getRolesVersion() { return rolesVersion == null ? 0 : rolesVersion; }
+    public void setRolesVersion(long version) { this.rolesVersion = version; }
 
     public Meeting() {
     }
