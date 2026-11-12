@@ -25,6 +25,11 @@
   </div>
 
   <!-- Main Content -->
+  <div class="unmute-request" *ngIf="unmuteRequest" role="status">
+    <span>{{ unmuteRequest }}</span>
+    <button type="button" (click)="acceptUnmute()">Bật micro</button>
+    <button type="button" (click)="unmuteRequest = ''">Bỏ qua</button>
+  </div>
   <div class="main-content">
     <!-- Video Grid -->
     <div class="video-grid">
@@ -35,7 +40,7 @@
           <i class="fas fa-video-slash" *ngIf="!videoEnabled"></i>
           <i class="fas fa-microphone-slash" *ngIf="!micEnabled"></i>
         </div>
-        <div class="video-label">Bạn (Camera)</div>
+        <div class="video-label">Bạn (Camera) <strong>{{ roleLabel(participantId) }}</strong></div>
       </div>
       <!-- Local Screen (if sharing) -->
       <div class="video-container" *ngIf="isScreenSharing">
@@ -49,9 +54,13 @@
           <i class="fas fa-video-slash" *ngIf="!peer.videoEnabled"></i>
           <i class="fas fa-microphone-slash" *ngIf="!peer.micEnabled"></i>
         </div>
-        <div class="video-label">{{ peer.id }}</div>
+        <div class="video-label">{{ peer.id }} <strong>{{ roleLabel(peer.id) }}</strong></div>
       </div>
     </div>
+
+    <app-meeting-participants *ngIf="isParticipantsOpen" [state]="roles" [myName]="participantId"
+      [busy]="roleBusy" [loading]="rolesLoading" [error]="rolesError"
+      (retry)="refreshRoles()" (command)="changeMeetingRole($event)"></app-meeting-participants>
 
     <!-- Chat Panel -->
     <div class="chat-panel" [ngClass]="{'open': isChatOpen}">
@@ -81,6 +90,11 @@
 
   <!-- Control Bar -->
   <div class="control-bar">
+    <button type="button" class="control-btn" (click)="toggleParticipants()"
+      title="Người tham gia" [attr.aria-expanded]="isParticipantsOpen">
+      <i class="fas fa-users"></i>
+      <span>{{ roles ? roles.participants.length : '' }}</span>
+    </button>
     <button class="control-btn" [ngClass]="{'active': !micEnabled}" (click)="toggleMic()"
       title="{{ micEnabled ? 'Tắt mic' : 'Bật mic' }}">
       <i class="fas" [ngClass]="micEnabled ? 'fa-microphone' : 'fa-microphone-slash'"></i>
@@ -102,7 +116,7 @@
       <i class="fas fa-comments"></i>
       <span class="new-message-badge" *ngIf="hasNewMessages"></span>
     </button>
-    <button class="control-btn disconnect-btn" (click)="disconnect()" title="Ngắt kết nối">
+    <button class="control-btn disconnect-btn" [disabled]="roleBusy" (click)="disconnect()" title="Rời phòng">
       <i class="fas fa-sign-out-alt"></i>
     </button>
   </div>

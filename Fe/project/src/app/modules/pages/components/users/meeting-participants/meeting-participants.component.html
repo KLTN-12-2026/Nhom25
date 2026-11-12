@@ -1,0 +1,50 @@
+<section class="participants-panel" aria-label="Người tham gia">
+  <h3>Người tham gia <span *ngIf="state">({{ state.participants.length }})</span></h3>
+  <p *ngIf="loading && !state" role="status">Đang tải danh sách…</p>
+  <div *ngIf="error" role="alert">
+    <p>{{ error }}</p>
+    <button type="button" (click)="retry.emit()">Tải lại danh sách</button>
+  </div>
+  <ng-container *ngIf="state">
+    <p class="help">Host rời phòng sẽ chuyển quyền cho Co-Host. Người tạo phòng được khôi phục Host khi tham gia lại.</p>
+    <ul>
+      <li *ngFor="let member of state.participants">
+        <ng-template #identity>
+          <span class="member-info">
+            <span class="member-name">{{ member.displayName }} <span *ngIf="member.userName === myName">(Bạn)</span></span>
+            <span class="role-label" [class.host]="member.role === 'HOST'" [class.co-host]="member.role === 'CO_HOST'">{{ roleName(member.role) }}</span>
+          </span>
+        </ng-template>
+        <div class="member-static">
+          <ng-container *ngTemplateOutlet="identity"></ng-container>
+          <button type="button" class="member-toggle" *ngIf="canManage(member)" [disabled]="busy"
+            [attr.aria-expanded]="openMenuId === member.userId" [attr.aria-controls]="'member-actions-' + member.userId"
+            [attr.aria-label]="'Thao tác với ' + member.displayName" (click)="toggleMenu(member)">
+            <span class="more-icon" aria-hidden="true">⋮</span>
+          </button>
+        </div>
+        <div class="member-actions" *ngIf="canManage(member) && openMenuId === member.userId"
+          [id]="'member-actions-' + member.userId" role="group" [attr.aria-label]="'Thao tác với ' + member.displayName">
+          <button type="button" *ngIf="isHost" [disabled]="busy" (click)="ask('TRANSFER_HOST', member)">Chuyển Host</button>
+          <button type="button" *ngIf="isHost && member.role !== 'CO_HOST'" [disabled]="busy" (click)="ask('SET_CO_HOST', member)">Đặt Co-Host</button>
+          <button type="button" *ngIf="isHost && member.role === 'CO_HOST'" [disabled]="busy" (click)="ask('REVOKE_CO_HOST', member)">Thu hồi Co-Host</button>
+          <button type="button" [disabled]="busy" (click)="ask('MUTE', member)">Tắt micro</button>
+          <button type="button" [disabled]="busy" (click)="ask('REQUEST_UNMUTE', member)">Yêu cầu bật micro</button>
+          <button type="button" [disabled]="busy" (click)="ask('STOP_SCREEN', member)">Dừng chia sẻ</button>
+          <button type="button" class="danger" [disabled]="busy" (click)="ask('REMOVE', member)">Xóa khỏi phòng</button>
+        </div>
+      </li>
+    </ul>
+    <button type="button" class="danger end-meeting" *ngIf="isHost" [disabled]="busy" (click)="ask('END')">Kết thúc cuộc họp cho tất cả</button>
+  </ng-container>
+  <div class="confirm-backdrop" *ngIf="pending">
+    <div class="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="role-confirmation">
+      <h3 id="role-confirmation">Xác nhận thao tác</h3>
+      <p>{{ confirmation }}</p>
+      <div class="dialog-actions">
+        <button type="button" (click)="pending = null">Hủy</button>
+        <button type="button" class="confirm" [disabled]="busy" (click)="confirm()">Xác nhận</button>
+      </div>
+    </div>
+  </div>
+</section>

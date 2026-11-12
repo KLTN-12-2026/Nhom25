@@ -20,11 +20,12 @@ import { RecordingComponent } from './users/recording/recording.component';
 import { ContactManagementComponent } from './admin/contact-management/contact-management.component';
 import { ContactComponent } from './users/contact/contact.component';
 import { ResultPayComponent } from './users/result-pay/result-pay.component';
+import { MeetingParticipantsComponent } from './users/meeting-participants/meeting-participants.component';
 
 
 
 @NgModule({
-  declarations: [ComponentsComponent, UsersManagementComponent, StatisticalManagementComponent, HomeMainComponent, ChattingComponent, UserInfoComponent, MeetingHistoryComponent, SchedulingComponent, PaymentComponent, CreatingRoomComponent, MeetingRoomComponent, SumaryAiComponent, RecordingComponent, ContactManagementComponent, ContactComponent, ResultPayComponent],
+  declarations: [MeetingParticipantsComponent, ComponentsComponent, UsersManagementComponent, StatisticalManagementComponent, HomeMainComponent, ChattingComponent, UserInfoComponent, MeetingHistoryComponent, SchedulingComponent, PaymentComponent, CreatingRoomComponent, MeetingRoomComponent, SumaryAiComponent, RecordingComponent, ContactManagementComponent, ContactComponent, ResultPayComponent],
   imports: [
     CommonModule,
     ComponentsRoutingModule,

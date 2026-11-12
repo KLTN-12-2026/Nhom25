@@ -5,6 +5,15 @@
     font-size: 1.5rem;
 }
 
+app-meeting-participants { flex: 0 0 auto; margin: 10px; overflow-y: auto; }
+.unmute-request { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px 20px; background: #fff3cd; color: #493800; }
+.unmute-request button { padding: 6px 12px; border-radius: 6px; border: 1px solid #b99838; background: #fff; }
+.video-label strong { margin-left: 8px; }
+@media (max-width: 760px) {
+  .main-content { flex-wrap: wrap; overflow-y: auto; }
+  app-meeting-participants { width: calc(100% - 20px); }
+}
+
 
 .datetime {
     transform: translateX(-50%);

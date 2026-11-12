@@ -4,7 +4,8 @@ import { HttpClient } from '@angular/common/http';
 import RecordRTC from 'recordrtc';
 import { JwtService } from 'src/app/services/jwt.service';
 import { MeetingService } from 'src/app/services/meeting.service';
-import { ParticipantsService } from 'src/app/services/participants.service';
+import { MeetingRolesDto, MeetingRoleCommand } from 'src/app/models/DTO/MeetingRolesDto';
+import { ToastrService } from 'ngx-toastr';
 
 declare global {
   interface MediaDevices {
@@ -41,6 +42,19 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
   chatInput: string = '';
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
+  roles: MeetingRolesDto | null = null;
+  rolesError = '';
+  rolesLoading = true;
+  private mediaReady: Promise<void> = Promise.resolve();
+  private screenRequestVersion = 0;
+  private rolesRefreshTimer: any;
+  isParticipantsOpen = false;
+  roleBusy = false;
+  unmuteRequest = '';
+  private leaving = false;
+  private heartbeatTimer: any;
+  private reconnectTimer: any;
+  private lastHeartbeat = 0;
   errorMessage: string | null = null;
   private disconnectedPeers: Set<string> = new Set();
   private recorder: RecordRTC | null = null;
@@ -50,7 +64,7 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
     private jwtService: JwtService,
     private route: ActivatedRoute,
     private meetingService: MeetingService,
-    private participantsService: ParticipantsService,
+    private toast: ToastrService,
     private cdr: ChangeDetectorRef,
     private router: Router
   ) {
@@ -65,27 +79,16 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
     this.roomLink = `${window.location.origin}/pages/components/meeting-room/${this.roomId}`;
     console.log('Joining room:', this.roomId, 'with participantId:', this.participantId);
 
-    this.meetingService.joinRoom(this.roomId, this.participantId).subscribe({
-      next: () => console.log('Joined room successfully'),
-      error: (err) => {
-        console.error('Error joining room:', err);
-        this.cdr.detectChanges();
-      },
-    });
-
-    await this.startWebRTC();
-    this.loadChatHistory();
+    // Joining the room must not wait for the browser's camera permission dialog.
+    this.mediaReady = this.startWebRTC();
     this.connectWebSocket();
+    this.loadChatHistory();
+    await this.mediaReady;
+    if (this.leaving) {
+      this.localStream?.getTracks().forEach(track => track.stop());
+      return;
+    }
 
-    this.participantsService.addParticipant(this.participantId, this.roomId).subscribe({
-      next: () => console.log('Saved participant successfully'),
-      error: (err) => {
-        console.error('Error saving participant:', err);
-        this.cdr.detectChanges();
-      },
-    });
-
-    window.addEventListener('popstate', this.onBackButton);
   }
 
   loadChatHistory() {
@@ -119,6 +122,7 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
   async startWebRTC() {
     try {
       const permissionStatus = await navigator.permissions.query({ name: 'camera' as PermissionName });
+      if (this.leaving) return;
       if (permissionStatus.state === 'denied') {
         this.errorMessage = 'Quyền truy cập camera bị từ chối. Vui lòng cấp quyền trong cài đặt trình duyệt.';
         this.cdr.detectChanges();
@@ -129,10 +133,13 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
         video: true,
         audio: true,
       });
+      this.localStream.getAudioTracks().forEach(track => track.enabled = this.micEnabled);
+      this.localStream.getVideoTracks().forEach(track => track.enabled = this.videoEnabled);
       const localVideo = document.getElementById('localVideo') as HTMLVideoElement;
       localVideo.srcObject = this.localStream;
       console.log('Local stream initialized with tracks:', this.localStream.getTracks());
     } catch (err) {
+      if (this.leaving) return;
       console.error('Error accessing media devices:', err);
       this.errorMessage = 'Không thể truy cập camera hoặc microphone. Vui lòng kiểm tra quyền truy cập.';
       this.cdr.detectChanges();
@@ -144,10 +151,16 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
       this.stopScreenShare();
     } else {
       try {
-        this.screenStream = await navigator.mediaDevices.getDisplayMedia({
+        const requestVersion = ++this.screenRequestVersion;
+        const stream = await navigator.mediaDevices.getDisplayMedia({
           video: true,
           audio: true,
         });
+        if (this.leaving || requestVersion !== this.screenRequestVersion) {
+          stream.getTracks().forEach(track => track.stop());
+          return;
+        }
+        this.screenStream = stream;
         this.isScreenSharing = true;
         console.log('Screen stream initialized with tracks:', this.screenStream.getTracks());
 
@@ -183,6 +196,7 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
 
         this.cdr.detectChanges();
       } catch (error) {
+        if (this.leaving) return;
         console.error('Error accessing display media:', error);
         this.errorMessage = (error as Error).name === 'NotAllowedError'
           ? 'Quyền chia sẻ màn hình bị từ chối. Vui lòng cấp quyền.'
@@ -195,6 +209,7 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
   }
 
   stopScreenShare() {
+    this.screenRequestVersion++;
     if (this.screenStream) {
       if (this.isRecording) {
         this.stopRecording();
@@ -305,9 +320,22 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
   }
 
   connectWebSocket() {
-    this.ws = new WebSocket('ws://localhost:8080/signaling');
+    if (this.leaving) return;
+    const socket = new WebSocket('ws://localhost:8080/signaling');
+    this.ws = socket;
 
     this.ws.onopen = () => {
+      if (this.leaving || this.ws !== socket) return;
+      this.reconnectAttempts = 0;
+      this.lastHeartbeat = Date.now();
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = setInterval(() => {
+        if (Date.now() - this.lastHeartbeat > 25000) {
+          this.ws?.close();
+        } else if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+          this.ws.send(JSON.stringify({ type: 'heartbeat' }));
+        }
+      }, 10000);
       console.log('WebSocket connected for participant:', this.participantId);
       this.reconnectAttempts = 0;
       this.ws?.send(
@@ -315,11 +343,16 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
           roomId: this.roomId,
           senderId: this.participantId,
           type: 'new-participant',
+          token: this.jwtService.getToken(),
         })
       );
+      // Recover a missed initial snapshot and expose HTTP errors in the member panel.
+      clearTimeout(this.rolesRefreshTimer);
+      this.rolesRefreshTimer = setTimeout(() => this.refreshRoles(), 1000);
     };
 
     this.ws.onmessage = async (event) => {
+      if (this.leaving || this.ws !== socket) return;
       try {
         const data = event.data;
         if (typeof data !== 'string' || data.trim() === '') {
@@ -337,12 +370,26 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
 
         console.log('Received signal:', signal);
 
+        if (signal.type === 'meeting-error') {
+          this.handleMeetingEvent(signal);
+          return;
+        }
+
         if (signal.roomId !== this.roomId) {
           console.log('Ignoring signal for different room:', signal.roomId);
           return;
         }
 
+        if (this.handleMeetingEvent(signal)) return;
+
+        // Room state and heartbeats remain responsive while media permission is pending.
+        if (['offer', 'answer', 'ice-candidate', 'new-participant'].includes(signal.type)) {
+          await this.mediaReady;
+          if (this.leaving || this.ws !== socket) return;
+        }
+
         const peerId = signal.senderId;
+        if (signal.type === 'new-participant') this.disconnectedPeers.delete(peerId);
         if (peerId === this.participantId) {
           console.log('Ignoring signal from self');
           return;
@@ -439,16 +486,27 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
     };
 
     this.ws.onerror = (err) => {
+      if (this.leaving || this.ws !== socket) return;
       console.error('WebSocket error:', err);
       this.errorMessage = 'Lỗi kết nối WebSocket. Vui lòng kiểm tra kết nối.';
       this.cdr.detectChanges();
     };
 
     this.ws.onclose = (event) => {
+      if (this.ws !== socket) return;
+      clearInterval(this.heartbeatTimer);
+      clearTimeout(this.rolesRefreshTimer);
+      if (this.leaving) return;
+      this.rolesError = 'Mất kết nối phòng. Đang kết nối lại…';
+      this.rolesLoading = false;
+      if (event.code === 1008) {
+        this.finishExit();
+        return;
+      }
       console.log('WebSocket closed, code:', event.code, 'reason:', event.reason);
       if (this.reconnectAttempts < this.maxReconnectAttempts) {
         console.log(`Reconnecting WebSocket, attempt ${this.reconnectAttempts + 1}`);
-        setTimeout(() => {
+        this.reconnectTimer = setTimeout(() => {
           this.reconnectAttempts++;
           this.connectWebSocket();
         }, 3000);
@@ -797,6 +855,94 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
     this.sendStatusUpdate();
   }
 
+  roleLabel(name: string): string {
+    const member = this.roles && this.roles.participants.find(p => p.userName === name);
+    return member && member.role === 'HOST' ? 'Host' : member && member.role === 'CO_HOST' ? 'Co-Host' : '';
+  }
+
+  refreshRoles(): void {
+    if (this.leaving) return;
+    this.meetingService.getRoles(this.roomId).subscribe(state => this.applyRoles(state), err => {
+      if (this.leaving) return;
+      this.rolesLoading = false;
+      this.rolesError = err.error?.message || (err.status === 404
+        ? 'API danh sách thành viên chưa sẵn sàng. Hãy kiểm tra phiên bản backend đang chạy.'
+        : 'Chưa tải được danh sách thành viên. Vui lòng thử lại.');
+      this.cdr.detectChanges();
+    });
+  }
+
+  toggleParticipants(): void {
+    this.isParticipantsOpen = !this.isParticipantsOpen;
+    if (this.isParticipantsOpen) this.refreshRoles();
+  }
+
+  private applyRoles(state: MeetingRolesDto): void {
+    if (this.leaving || (this.roles && state.version < this.roles.version)) return;
+    const previous = this.roleLabel(this.participantId);
+    this.roles = state;
+    this.rolesError = '';
+    this.rolesLoading = false;
+    const current = this.roleLabel(this.participantId);
+    if (previous !== current && current) this.toast.info('Vai trò hiện tại của bạn là ' + current + '.');
+    if (state.ended) {
+      this.toast.info('Host đã kết thúc cuộc họp.');
+      this.finishExit();
+      return;
+    }
+    this.cdr.detectChanges();
+  }
+
+  changeMeetingRole(command: MeetingRoleCommand): void {
+    if (this.roleBusy || this.leaving) return;
+    this.roleBusy = true;
+    this.meetingService.changeRoles(this.roomId, command).subscribe(state => {
+      this.roleBusy = false;
+      this.applyRoles(state);
+      if (!state.ended) this.toast.success('Đã thực hiện thao tác.');
+    }, err => {
+      this.roleBusy = false;
+      this.toast.error(err.error?.message || 'Không thực hiện được thao tác. Vui lòng thử lại.');
+      this.refreshRoles();
+    });
+  }
+
+  acceptUnmute(): void {
+    this.unmuteRequest = '';
+    if (!this.micEnabled) this.toggleMic();
+  }
+
+  private handleMeetingEvent(signal: any): boolean {
+    if (signal.type === 'meeting-error') {
+      this.toast.error(signal.message);
+      this.finishExit();
+      return true;
+    }
+    if (signal.type === 'heartbeat') {
+      this.lastHeartbeat = Date.now();
+      this.refreshRoles();
+      return true;
+    }
+    if (signal.type === 'meeting-roles-updated') {
+      this.applyRoles(signal.state);
+      return true;
+    }
+    if (signal.type !== 'meeting-command') return false;
+    if (signal.action === 'REMOVE') {
+      this.toast.warning('Bạn đã được quản lý phòng đưa ra khỏi cuộc họp.');
+      this.finishExit();
+    } else if (signal.action === 'MUTE') {
+      if (this.micEnabled) this.toggleMic();
+      this.toast.info(signal.actorName + ' đã tắt micro của bạn.');
+    } else if (signal.action === 'REQUEST_UNMUTE') {
+      this.unmuteRequest = signal.actorName + ' đề nghị bạn bật micro.';
+    } else if (signal.action === 'STOP_SCREEN') {
+      this.stopScreenShare();
+      this.toast.info(signal.actorName + ' đã dừng chia sẻ màn hình của bạn.');
+    }
+    return true;
+  }
+
   toggleVideo() {
     this.videoEnabled = !this.videoEnabled;
     this.localStream?.getVideoTracks().forEach((track) => {
@@ -829,76 +975,52 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
   }
 
   disconnect() {
-    console.log('Disconnecting from room:', this.roomId);
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send(
-        JSON.stringify({
-          roomId: this.roomId,
-          senderId: this.participantId,
-          type: 'participant-left',
-        })
-      );
-      console.log('Sent participant-left message');
-    }
-    this.meetingService.leaveRoom(this.participantId, this.roomId).subscribe({
-      next: () => console.log('Set participant time leave OK'),
-      error: (err) => {
-        console.error('User:', this.participantId, 'Error setting participant time leave:', err);
-        this.cdr.detectChanges();
-      },
+    if (this.roleBusy || this.leaving) return;
+    this.roleBusy = true;
+    this.meetingService.leaveMeeting(this.roomId).subscribe(() => {
+      this.finishExit();
+    }, err => {
+      this.roleBusy = false;
+      this.toast.error(err.error?.message || 'Không thể rời phòng. Hãy kiểm tra kết nối.');
+      this.refreshRoles();
     });
+  }
 
-    this.stopScreenShare();
-    this.localStream?.getTracks().forEach((track) => track.stop());
-    this.peerConnections.forEach((pc) => pc.close());
-    this.peerConnections.clear();
-    this.peers = [];
-    this.disconnectedPeers.clear();
-    this.chatMessagesList = [];
-    this.hasNewMessages = false;
-    if (this.isRecording) {
-      this.stopRecording();
-    }
-    if (this.ws) {
-      this.ws.close();
-      this.ws = null;
-    }
-    console.log('Cleaned up resources and disconnected');
-
+  private finishExit(): void {
+    this.cleanupRoom();
     this.router.navigate(['/pages/components/home-main']);
   }
 
-  ngOnDestroy() {
-    window.removeEventListener('popstate', this.onBackButton);
+  private cleanupRoom(): void {
+    this.leaving = true;
     clearInterval(this.intervalId);
-
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send(
-        JSON.stringify({
-          roomId: this.roomId,
-          senderId: this.participantId,
-          type: 'participant-left',
-        })
-      );
-      console.log('Sent participant-left message');
+    clearInterval(this.heartbeatTimer);
+    clearTimeout(this.reconnectTimer);
+    clearTimeout(this.rolesRefreshTimer);
+    const socket = this.ws;
+    this.ws = null;
+    if (socket) {
+      socket.onclose = null;
+      socket.onmessage = null;
+      socket.onopen = null;
+      socket.close();
     }
-
     this.stopScreenShare();
-    this.localStream?.getTracks().forEach((track) => track.stop());
-    this.peerConnections.forEach((pc) => pc.close());
+    this.localStream?.getTracks().forEach(track => track.stop());
+    this.peerConnections.forEach(pc => {
+      pc.onconnectionstatechange = null;
+      pc.oniceconnectionstatechange = null;
+      pc.close();
+    });
     this.peerConnections.clear();
     this.peers = [];
-    this.disconnectedPeers.clear();
-    this.chatMessagesList = [];
-    this.hasNewMessages = false;
-    if (this.isRecording) {
-      this.stopRecording();
-    }
-    if (this.ws) {
-      this.ws.close();
-      this.ws = null;
-    }
-    console.log('Component destroyed, cleaned up resources');
+    this.signalQueue.clear();
+    this.pendingIceCandidates.clear();
+    if (this.isRecording) this.stopRecording();
+  }
+
+  ngOnDestroy() {
+    this.cleanupRoom();
   }
 
   trackByPeerId(index: number, peer: { id: string }): string {
@@ -912,13 +1034,4 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
     this.currentTime = `${time} • ${date}`;
   }
 
-  onBackButton = (event: PopStateEvent) => {
-    this.meetingService.leaveRoom(this.participantId, this.roomId).subscribe({
-      next: () => console.log('Saved time leave successfully'),
-      error: (err) => {
-        console.error('Error setting participant time leave:', err);
-        this.cdr.detectChanges();
-      },
-    });
-  }
 }
