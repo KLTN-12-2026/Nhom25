@@ -21,12 +21,13 @@ public class JwtTokenProvider {
     @Value("${app.jwtExpirationInMs}")
     private int jwtExpirationInMs;
     private static final String AUTHORIZATION_HEADER = "Authorization";
-    private static final String TOKEN_PREFIX = "Bearer";
+    private static final String TOKEN_PREFIX = "Bearer ";
 
     public String getJwtFromRequest(HttpServletRequest request) {
         String bearerToken = request.getHeader(AUTHORIZATION_HEADER);
-        if (bearerToken != null && bearerToken.startsWith(TOKEN_PREFIX)) {
-            return bearerToken.substring(TOKEN_PREFIX.length());
+        if (bearerToken != null && bearerToken.regionMatches(true, 0, TOKEN_PREFIX, 0, TOKEN_PREFIX.length())) {
+            String token = bearerToken.substring(TOKEN_PREFIX.length()).trim();
+            return token.isEmpty() ? null : token;
         }
         return null;
     }
