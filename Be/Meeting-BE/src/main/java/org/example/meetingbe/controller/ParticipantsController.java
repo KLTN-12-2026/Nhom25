@@ -20,6 +20,8 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
+import org.springframework.security.core.Authentication;
+import org.example.meetingbe.service.meeting.MeetingRolesService;
 
 @RestController
 @RequestMapping("/api/participants")
@@ -31,19 +33,25 @@ public class ParticipantsController {
     private IUserRepo userService;
     @Autowired
     private IMeetingRepo meetingService;
+    @Autowired
+    private MeetingRolesService meetingRoles;
+
+    private String authenticatedName(Authentication auth) {
+        if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getPrincipal()))
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Vui lòng đăng nhập.");
+        return auth.getName();
+    }
     @PutMapping("/leave")
-    public Participants leaveMeeting(@RequestParam("userName") String userName, @RequestParam("meetingCode") String meetingCode) {
-        User user = userService.findByUserName(userName);
+    public Participants leaveMeeting(@RequestParam("userName") String userName, @RequestParam("meetingCode") String meetingCode,
+                                     Authentication auth) {
+        String actor = authenticatedName(auth);
+        meetingRoles.leave(meetingCode, actor, true);
+        User user = userService.findByUserName(actor);
         Meeting meeting = meetingService.findByCode(meetingCode);
         Participants participant = participantsService.findByUserIdAndMeetingId(user.getId(), meeting.getId());
         if (participant == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Participant does not exist");
         }
-        if (participant.getLeftAt() != null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Participant has already left");
-        }
-        participant.setLeftAt(LocalDateTime.now());
-        participantsService.save(participant);
         return participant;
     }
 
@@ -74,8 +82,11 @@ public class ParticipantsController {
     }
 
     @PostMapping
-    public Participants addNew(@RequestParam("userName") String userName, @RequestParam("meetingCode") String meetingCode){
-        User user = userService.findByUserName(userName);
+    public Participants addNew(@RequestParam("userName") String userName, @RequestParam("meetingCode") String meetingCode,
+                               Authentication auth){
+        String actor = authenticatedName(auth);
+        meetingRoles.state(meetingCode, actor);
+        User user = userService.findByUserName(actor);
         Meeting meeting = meetingService.findByCode(meetingCode);
         Participants participant =participantsService.findByUserIdAndMeetingId(user.getId(), meeting.getId());
         if (participant != null) {

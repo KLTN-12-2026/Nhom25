@@ -44,6 +44,8 @@ public class MeetingService implements IMeetingService {
         User host = userRepo.findById(hostId)
                 .orElseThrow(() -> new RuntimeException("Host not found"));
         meeting.setUser(host);
+        meeting.setCreator(host);
+        meeting.setActive(true);
 
         // Lưu vào cơ sở dữ liệu
         Meeting savedMeeting = meetingRepo.save(meeting);
@@ -68,7 +70,18 @@ public class MeetingService implements IMeetingService {
     }
     @Override
     public MeetingDto getRoom(String meetingId) {
-        return meetings.get(meetingId);
+        Meeting meeting = meetingRepo.findByCode(meetingId);
+        if (meeting == null) throw new org.springframework.web.server.ResponseStatusException(
+                org.springframework.http.HttpStatus.NOT_FOUND, "Cuộc họp không tồn tại.");
+        MeetingDto dto = new MeetingDto();
+        dto.setId(meeting.getId());
+        dto.setCode(meeting.getCode());
+        dto.setTitle(meeting.getTitle());
+        dto.setHostId(meeting.getUser().getId());
+        dto.setStartTime(meeting.getStartTime());
+        dto.setEndTime(meeting.getEndTime());
+        dto.setCreateAt(meeting.getCreateAt());
+        return dto;
     }
     @Override
     public void addParticipant(String meetingId, Long userId) {
@@ -89,6 +102,7 @@ public class MeetingService implements IMeetingService {
         User host = userRepo.findById(hostId)
                 .orElseThrow(() -> new RuntimeException("Host not found"));
         meeting.setUser(host);
+        meeting.setCreator(host);
 
         // Lưu vào cơ sở dữ liệu
         Meeting savedMeeting = meetingRepo.save(meeting);
