@@ -67,7 +67,7 @@ export class UserService {
   }
 
   forgotPassword(email:string):Observable<string>{
-    return this.httpClient.post(this.API_URL + "forgot-password?email=" + email, {},
+    return this.httpClient.post(this.API_URL + "forgot-password?email=" + encodeURIComponent(email), {},
       {responseType: 'text'}
     );
   }
@@ -82,7 +82,7 @@ export class UserService {
   resetPassword(email: string, password: string): Observable<any>{
     return this.httpClient.put<any>(
       `${this.API_URL}resetPassword`,
-      { email, password }
+      { email, password, resetToken: sessionStorage.getItem('password-reset-token') }
     );
   }
 

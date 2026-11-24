@@ -174,11 +174,12 @@ public class UserService implements IUserService {
     }
 
     @Override
+    @org.springframework.transaction.annotation.Transactional
     public User resetPassword(String password, String email) {
-        Optional<User> user = userRepo.findByEmail(email);
-        user.get().setPassword(passwordEncoder.encode(password));
-        userRepo.save(user.get());
-        return user.get();
+        User user = userRepo.findByEmail(email)
+                .orElseThrow(() -> new EntityNotFoundException("User not found"));
+        user.setPassword(passwordEncoder.encode(password));
+        return userRepo.save(user);
     }
 
     @Override

@@ -34,6 +34,11 @@ export class ForgotPasswordComponent implements OnInit {
   }
 
   submitForgot(){
+    if (this.formMail.invalid || this.isLoading) {
+      this.formMail.markAllAsTouched();
+      return;
+    }
+    sessionStorage.removeItem('password-reset-token');
     this.isLoading = true;
     const email = this.formMail.get('email')?.value;
     this.userService.forgotPassword(this.formMail.get('email')?.value).subscribe((res) => {
@@ -41,10 +46,23 @@ export class ForgotPasswordComponent implements OnInit {
       this.toast.success(res); 
       localStorage.setItem('email-forgot', email);
       this.isLoading = false;
-      this.router.navigateByUrl("/verify");
+      this.router.navigateByUrl("/auth/verify");
     },
     (err) => {
-      const errorMessage = err.error?.message || 'Email không hợp lệ hoặc không tồn tại';
+      // The service requests text, so JSON error responses also arrive as strings.
+      let responseBody = err.error;
+      if (typeof responseBody === 'string') {
+        try {
+          responseBody = JSON.parse(responseBody);
+        } catch (_) {
+          responseBody = null;
+        }
+      }
+      const errorMessage = responseBody?.message || (err.status === 503
+        ? 'Không gửi được OTP. Vui lòng kiểm tra cấu hình email của server.'
+        : err.status === 0
+          ? 'Không kết nối được server. Vui lòng thử lại.'
+          : 'Không thể yêu cầu đặt lại mật khẩu. Vui lòng thử lại.');
       this.toast.error(errorMessage);
       this.isLoading = false;
     })

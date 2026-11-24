@@ -33,14 +33,28 @@ export class ChangePasswordComponent implements OnInit {
   }
 
   submitReset(){
+    const email = localStorage.getItem('email-forgot');
+    if (!email || !sessionStorage.getItem('password-reset-token')) {
+      this.toast.error('Thiếu email đặt lại mật khẩu. Vui lòng thực hiện lại bước quên mật khẩu.');
+      return;
+    }
+    if (this.resetForm.invalid) {
+      this.resetForm.markAllAsTouched();
+      return;
+    }
     this.isLoading = true;
     const newPass = this.resetForm.get('newPassword')?.value;
     if (newPass == this.resetForm.get('rePassword')?.value) {
-      this.userService.resetPassword(localStorage.getItem('email-forgot'), newPass).subscribe(next => {
+      this.userService.resetPassword(email, newPass).subscribe(next => {
         this.toast.success('Thay đổi mật khẩu thành công');
 
         this.isLoading = false;
+        localStorage.removeItem('email-forgot');
+        sessionStorage.removeItem('password-reset-token');
         this.router.navigateByUrl("/auth/login");
+      }, err => {
+        this.isLoading = false;
+        this.toast.error(err.error?.message || 'Không thể đặt lại mật khẩu. Vui lòng thử lại.');
       })
     } else {
       this.isLoading = false;

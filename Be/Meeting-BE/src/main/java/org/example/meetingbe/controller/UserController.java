@@ -54,6 +54,7 @@ import java.util.stream.Collectors;
 @RequestMapping("/api/user")
 @CrossOrigin(origins = "http://localhost:4200/", allowedHeaders = "*")
 public class UserController {
+    private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(UserController.class);
     @Autowired
     private CacheService cacheService;
     @Autowired
@@ -273,29 +274,36 @@ public class UserController {
     }
 
     @PostMapping("/forgot-password")
-    public ResponseEntity<?> forgotPassword(@RequestParam String email) throws MessagingException {
+    public ResponseEntity<?> forgotPassword(@RequestParam("email") String email) {
+        email = email.trim();
         if (!userService.exitsByEmail(email)) {
             return ResponseEntity.badRequest().body(new ResponseMessage("Email không tồn tại"));
         }
         String otp = cacheService.generateOtp(email);
-        mailRegister.sendOtp(email, otp);
+        try {
+            mailRegister.sendOtp(email, otp);
+        } catch (MessagingException | org.springframework.mail.MailException e) {
+            cacheService.clearOtp(email);
+            logger.error("Failed to send password reset email", e);
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                    .body(new ResponseMessage("Không gửi được OTP. Vui lòng kiểm tra cấu hình email của server"));
+        }
         return ResponseEntity.ok("OTP đã được gửi về mail của bạn");
     }
 
     @PostMapping("/verify-otp")
-    public ResponseEntity<?> verifyOtp(@RequestBody Map<String, String> request) {
+    public synchronized ResponseEntity<?> verifyOtp(@RequestBody Map<String, String> request) {
         String email = request.get("email");
         String otp = request.get("otp");
-        String cachedOtp = cacheService.getOtp(email);
-        System.out.println("otp after input: " + otp);
-        System.out.println("otp after get: " + cachedOtp);
-        if (otp == null || otp.trim().isEmpty()) {
+        if (email == null || email.isBlank() || otp == null || !otp.matches("[0-9]{4}")) {
             return ResponseEntity.badRequest().body(new ResponseMessage("OTP không được để trống"));
         }
+        email = email.trim();
+        String cachedOtp = cacheService.getOtp(email);
         if (otp != null && cachedOtp != null && cachedOtp.equals(otp)) {
-            System.out.println(otp != null && cachedOtp != null && cachedOtp.equals(otp));
             cacheService.clearOtp(email);
-            return ResponseEntity.ok(new ResponseMessage("Xác minh OTP thành công"));
+            return ResponseEntity.ok(Map.of("message", "Xác minh OTP thành công",
+                    "resetToken", cacheService.issueResetToken(email)));
         }
         return ResponseEntity.badRequest().body(new ResponseMessage("OTP không khớp"));
     }
@@ -304,8 +312,22 @@ public class UserController {
     public ResponseEntity<?> resetPassword(@RequestBody Map<String, String> request) {
         String email = request.get("email");
         String password = request.get("password");
-        System.out.println(password);
-        userService.resetPassword(password,email);
+        if (email == null || email.isBlank() || password == null || password.length() < 8) {
+            return ResponseEntity.badRequest().body(new ResponseMessage("Email và mật khẩu tối thiểu 8 ký tự là bắt buộc"));
+        }
+        try {
+            if (!cacheService.consumeResetToken(email.trim(), request.get("resetToken"))) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(new ResponseMessage("Phiên đặt lại mật khẩu hết hạn hoặc không hợp lệ. Vui lòng xác minh OTP lại"));
+            }
+            userService.resetPassword(password, email.trim());
+        } catch (jakarta.persistence.EntityNotFoundException e) {
+            return ResponseEntity.badRequest().body(new ResponseMessage("Email không tồn tại. Vui lòng thực hiện lại bước quên mật khẩu"));
+        } catch (Exception e) {
+            logger.error("Password reset failed", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new ResponseMessage("Không lưu được mật khẩu. Vui lòng thực hiện lại bước quên mật khẩu"));
+        }
         return ResponseEntity.ok(new ResponseMessage("Thay đổi mật khẩu thành công"));
     }
 

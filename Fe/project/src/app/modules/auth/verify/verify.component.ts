@@ -26,11 +26,16 @@ export class VerifyComponent implements OnInit {
 
   submitOtp(){
     this.isLoading = true;
-    const otp = this.otpForm.get('otp1')?.value + this.otpForm.get('otp2')?.value + this.otpForm.get('otp3')?.value+ this.otpForm.get('otp4')?.value;
+    const otp = ['otp1', 'otp2', 'otp3', 'otp4'].map(key => this.otpForm.get(key)?.value || '').join('');
     const email = localStorage.getItem('email-forgot');
-    console.log(otp);
+    if (!email || !/^\d{4}$/.test(otp)) {
+      this.isLoading = false;
+      this.toast.error('Vui lòng nhập đủ 4 chữ số OTP và thực hiện bước quên mật khẩu trước.');
+      return;
+    }
     this.userService.verifyOtp(email, otp).subscribe(
       (res) => {
+        sessionStorage.setItem('password-reset-token', res.resetToken);
         this.isLoading = false;
         this.toast.success(res.message); 
         this.router.navigateByUrl("/auth/change-password");

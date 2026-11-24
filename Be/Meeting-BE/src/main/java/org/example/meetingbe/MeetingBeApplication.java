@@ -35,14 +35,17 @@ public class MeetingBeApplication {
         mailSender.setPort(port);
 
         mailSender.setUsername(username);
-        mailSender.setPassword("sqaa fako beip hdop");
+        mailSender.setPassword(password);
 
 
         Properties props = mailSender.getJavaMailProperties();
         props.put("mail.transport.protocol", "smtp");
         props.put("mail.smtp.auth", true);
         props.put("mail.smtp.starttls.enable", true);
-        props.put("mail.debug", true);
+        props.put("mail.debug", false);
+        props.put("mail.smtp.connectiontimeout", "10000");
+        props.put("mail.smtp.timeout", "10000");
+        props.put("mail.smtp.writetimeout", "10000");
 
         return mailSender;
     }
