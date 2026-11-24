@@ -49,30 +49,25 @@ export class JwtService {
   public removeDate(){
     localStorage.removeItem('Date');
   }
-  verifyToken(): any{
-    let result = this.getToken() == null ? false : true;
-    console.log(result);
-    const date = new Date();
-    const createdTime = this.getDate();
-    if(createdTime != null){
-      const created = new Date(createdTime);
-      date.setDate(created.getDate() + 1);
-      const currentTime = new Date();
-      if (date < currentTime) {
-        result = false;
-        this.removeToken();
-        this.removeRoles();
-        this.removeName();
-        this.removeDate();
-        // this.router.navigateByUrl("/auth/login")
-      } else {
-        console.log('token con hieu luc');
+  verifyToken(): boolean {
+    const token = this.getToken();
+    try {
+      const payload = token && token.split('.')[1];
+      if (payload) {
+        const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+        const claims = JSON.parse(atob(base64));
+        if (typeof claims.exp === 'number' && claims.exp * 1000 > Date.now()) {
+          return true;
+        }
       }
-    } else {
-      result = false;
-      // this.router.navigateByUrl("/auth/login")
+    } catch (_) {
+      // Invalid tokens require a new login.
     }
-    return result;
+    this.removeToken();
+    this.removeRoles();
+    this.removeName();
+    this.removeDate();
+    return false;
   }
 
   public generateHeader(): HttpHeaders {

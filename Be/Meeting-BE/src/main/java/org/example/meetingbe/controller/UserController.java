@@ -83,16 +83,24 @@ public class UserController {
 
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody LoginForm login) {
+        if (login.getUserName() == null || login.getUserName().isBlank()
+                || login.getPassword() == null || login.getPassword().isEmpty()) {
+            return ResponseEntity.badRequest().body(new ResponseMessage("Vui lòng nhập tài khoản và mật khẩu"));
+        }
         try {
             Authentication authentication = authenticationManager.authenticate(
-                    new UsernamePasswordAuthenticationToken(login.getUserName(), login.getPassword()));
+                    new UsernamePasswordAuthenticationToken(login.getUserName().trim(), login.getPassword()));
             SecurityContextHolder.getContext().setAuthentication(authentication);
             String token = jwtTokenProvider.generateToken(authentication);
             UserPrinciple userPrinciple = (UserPrinciple) authentication.getPrincipal();
             LocalDateTime time = LocalDateTime.now();
             return new ResponseEntity<>(new JwtResponse(token, userPrinciple.getUsername(), userPrinciple.getAuthorities(), time), HttpStatus.OK);
-        } catch (Exception e) {
+        } catch (org.springframework.security.authentication.BadCredentialsException e) {
             return new ResponseEntity<>(new ResponseMessage("Tài khoản hoặc mật khẩu không đúng"), HttpStatus.UNAUTHORIZED);
+        } catch (Exception e) {
+            logger.error("Login processing failed", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new ResponseMessage("Lỗi xử lý đăng nhập trên server. Vui lòng kiểm tra log backend"));
         }
     }
 
@@ -120,9 +128,9 @@ public class UserController {
                         .body(new ResponseMessage("Email này đã được đăng ký bằng tài khoản mật khẩu"));
             }
         }
-        user = new User();
         Set<Role> role = roleRepo.findByRoleName("USER");
-        if (!existsEmail) {
+        if (optionalUser.isEmpty()) {
+            user = new User();
             user.setAvatar(picture);
             user.setEmail(email);
             user.setUserName(name);
@@ -131,6 +139,8 @@ public class UserController {
             user.setVip(false);
             user.setRoles(role);
             user = userRepo.save(user);
+        } else {
+            user = optionalUser.get();
         }
         Optional<User> userAfterSave = userService.findByEmail(email);
         try {
@@ -161,7 +171,7 @@ public class UserController {
             JacksonFactory jsonFactory = JacksonFactory.getDefaultInstance();
 
             GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(transport, jsonFactory)
-                    .setAudience(Collections.singletonList("705757181216-610b41ap71n8d08rblrmkk643muc33t3.apps.googleusercontent.com"))
+                    .setAudience(Collections.singletonList(googleClientId))
                     .build();
 
             return verifier.verify(idTokenString);

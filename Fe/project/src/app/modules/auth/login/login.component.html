@@ -8,7 +8,7 @@
             </div>
             <form [formGroup]="formLogin" (ngSubmit)="loginSubmit()">
                 <div class="form-group">
-                    <input type="email" placeholder="Email hoặc số điện thoại" formControlName="userName" />
+                    <input type="text" placeholder="Email hoặc tên tài khoản" formControlName="userName" autocomplete="username" />
                 </div>
                 <div class="form-group">
                     <input type="password" placeholder="Mật khẩu" formControlName="password" />

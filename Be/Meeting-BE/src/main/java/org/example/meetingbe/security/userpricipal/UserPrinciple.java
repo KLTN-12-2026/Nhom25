@@ -17,8 +17,16 @@ public class UserPrinciple implements UserDetails {
     private String userName;
     @JsonIgnore
     private String password;
-    public UserPrinciple(Login login) {}
-    public UserPrinciple(User user) {}
+    public UserPrinciple(Login login) {
+        this(login.getId(), login.getUsername(), login.getPassword(),
+                login.getRoles().stream().map(role ->
+                        new SimpleGrantedAuthority(role.getRoleName())).collect(Collectors.toList()));
+    }
+    public UserPrinciple(User user) {
+        this(user.getId(), user.getUserName(), user.getPassword(),
+                user.getRoles().stream().map(role ->
+                        new SimpleGrantedAuthority(role.getRoleName())).collect(Collectors.toList()));
+    }
     public Collection<? extends GrantedAuthority> authorities;
     public UserPrinciple(Long id, String userName, String password, Collection<? extends GrantedAuthority> authorities) {
         super();
