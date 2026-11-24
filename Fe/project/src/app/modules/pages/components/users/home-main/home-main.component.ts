@@ -54,7 +54,26 @@ export class HomeMainComponent {
     })
   }
 
+  private handleCreateError(error: any) {
+    if (error.status === 401) {
+      this.toastr.error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
+      this.userSer.logout();
+      return;
+    }
+    this.toastr.error(error.error?.message || error.error?.detail || error.error?.reason ||
+      (error.status === 0 ? 'Không kết nối được backend.' : 'Không thể tạo phòng họp. Vui lòng thử lại.'));
+  }
+
   createRoom() {
+  if (!this.jwtService.verifyToken()) {
+    this.handleCreateError({status: 401});
+    return;
+  }
+  if (this.creatingForm.invalid || !this.creatingForm.get('title')?.value?.trim()) {
+    this.creatingForm.markAllAsTouched();
+    this.toastr.error('Vui lòng nhập tiêu đề cuộc họp.');
+    return;
+  }
   this.userSer.getByUserName().subscribe((user) => {
     this.hostId = user.id;
     const title = this.creatingForm.get('title')?.value;
@@ -62,9 +81,9 @@ export class HomeMainComponent {
     this.meetingService.createRoom(this.hostId, title).subscribe((meeting) => {
       this.router.navigate([`pages/components/meeting-room/${meeting.code}`]);
     }, (error) => {
-      this.toastr.error('Không thể tạo phòng họp!', 'Error');
+      this.handleCreateError(error);
     });
-  });
+  }, error => this.handleCreateError(error));
 }
 
 
