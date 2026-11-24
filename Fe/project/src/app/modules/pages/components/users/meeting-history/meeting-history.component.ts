@@ -7,6 +7,7 @@ import { ToastrService } from 'ngx-toastr';
 import * as RecordRTC from 'recordrtc';
 import { Meeting } from '../../../../../models/Meeting';
 import { AngularFireStorage } from '@angular/fire/storage';
+import { MeetingSummariesService, MeetingAISummary } from 'src/app/services/meeting-summaries.service';
 
 @Component({
   selector: 'app-meeting-history',
@@ -30,6 +31,10 @@ export class MeetingHistoryComponent implements OnInit {
   recordUpdate: any;
   selectedFile: File | null = null;
   meetId: any;
+  aiResult: MeetingAISummary | null = null;
+  aiLoading = false;
+  aiReading = false;
+  aiError = '';
   meetFile: any=null;
   private recorder: RecordRTC | null = null;
 
@@ -40,6 +45,7 @@ export class MeetingHistoryComponent implements OnInit {
     private service: ParticipantsService,
     private toast: ToastrService,
     private userService: UserService,
+    private summaries: MeetingSummariesService,
   ) {
     this.form = new FormGroup({
       joinAt: new FormControl(''),
@@ -65,8 +71,24 @@ export class MeetingHistoryComponent implements OnInit {
   }
 
   getIdBlog(item) {
+    this.selectedFile = null;
+    this.aiResult = null;
+    this.aiError = '';
     this.recordUpdate = item
     this.meetId = item.meeting.id;
+    const summaryMeetingId = this.meetId;
+    this.aiReading = true;
+    this.summaries.getSummary(summaryMeetingId).subscribe(result => {
+      if (this.meetId === summaryMeetingId) {
+        this.aiResult = result;
+        this.aiReading = false;
+      }
+    }, err => {
+      if (this.meetId === summaryMeetingId) {
+        this.aiReading = false;
+        this.aiError = err.error?.message || 'Không tải được bản tóm tắt đã lưu.';
+      }
+    });
     this.meetFile = null;
     this.form.patchValue({
       joinAt: this.recordUpdate.joinAt,
@@ -77,9 +99,11 @@ export class MeetingHistoryComponent implements OnInit {
       meetingId: this.recordUpdate.meeting.id,
     })
     this.recordSer.findByMeetingId(this.meetId).subscribe((data: any) => {
-      if (data.recordUrl != null) {
+      if (this.meetId === summaryMeetingId && !this.selectedFile && data?.recordUrl != null) {
         this.meetFile = data.recordUrl;
       }
+    }, () => {
+      if (this.meetId === summaryMeetingId && !this.selectedFile) this.meetFile = null;
     })
   }
 
@@ -119,7 +143,29 @@ export class MeetingHistoryComponent implements OnInit {
 
 
   summarizeByAI(): void {
-
+    if (this.aiLoading || this.aiReading) return;
+    if (!this.selectedFile) {
+      this.toast.error('Hãy chọn file bản ghi để tóm tắt.');
+      return;
+    }
+    if (this.selectedFile.size === 0 || this.selectedFile.size > 14 * 1024 * 1024) {
+      this.toast.error('Chọn bản ghi có dữ liệu, tối đa 14 MB.');
+      return;
+    }
+    const meetingId = this.meetId;
+    this.aiLoading = true;
+    this.aiError = '';
+    this.summaries.summarize(meetingId, this.selectedFile).subscribe(result => {
+      this.aiLoading = false;
+      if (this.meetId === meetingId) this.aiResult = result;
+      this.toast.success('Đã tạo và lưu bản tóm tắt AI.');
+    }, err => {
+      this.aiLoading = false;
+      if (this.meetId === meetingId) {
+        this.aiError = err.error?.message || 'Không xử lý được bản ghi. Vui lòng thử lại.';
+        this.toast.error(this.aiError);
+      }
+    });
   }
 
 

@@ -6,4 +6,5 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface IMeetingSummariesRepo extends JpaRepository<MeetingSummaries, Long> {
+    java.util.Optional<MeetingSummaries> findFirstByMeetingIdOrderByCreateAtDescIdDesc(Long meetingId);
 }

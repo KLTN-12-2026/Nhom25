@@ -11,6 +11,11 @@ public class MeetingSummaries {
     private Long id;
     @Column(columnDefinition = "TEXT")
     private String summary;
+    @Column(columnDefinition = "LONGTEXT")
+    private String transcript;
+
+    public String getTranscript() { return transcript; }
+    public void setTranscript(String transcript) { this.transcript = transcript; }
     @Column(name = "create_at", columnDefinition = "DATETIME")
     private LocalDateTime createAt;
     @ManyToOne

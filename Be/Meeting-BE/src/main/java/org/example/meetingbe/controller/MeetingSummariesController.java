@@ -1,106 +1,77 @@
 package org.example.meetingbe.controller;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import org.example.meetingbe.model.MeetingSummaries;
-import org.example.meetingbe.repository.IMeetingRepo;
-import org.example.meetingbe.repository.IMeetingSummariesRepo;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
+import org.example.meetingbe.model.*;
+import org.example.meetingbe.repository.*;
+import org.example.meetingbe.service.meetingSummaries.GeminiMeetingService;
+import org.springframework.http.*;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
-
-import java.io.BufferedReader;
+import org.springframework.web.server.ResponseStatusException;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.LocalDateTime;
+import java.util.*;
 
 @RestController
-@RequestMapping("/api")
-@CrossOrigin(origins = "http://localhost:4200/", allowedHeaders = "*")
+@RequestMapping("/api/meeting")
 public class MeetingSummariesController {
-    @Autowired
-    private IMeetingSummariesRepo meetingSummariesRepo;
-    @Autowired
-    private IMeetingRepo meetingRepo;
-    @PostMapping("/meeting/upload-audio")
-    public ResponseEntity<String> uploadAudio(@RequestParam("audio") MultipartFile audio,
-                                              @RequestParam("meetingId") Long meetingId) throws IOException {
-
-        // Bước 1: Tạo thư mục uploads nếu chưa tồn tại
-        Path uploadsDir = Paths.get("D:\\uploads");
-        if (!Files.exists(uploadsDir)) {
-            Files.createDirectories(uploadsDir);
-        }
-
-        // Bước 2: Tạo đường dẫn file audio
-        Path audioPath = uploadsDir.resolve("meeting_" + meetingId + ".webm");
-
-        // Bước 3: Lưu file lên ổ cứng
-        Files.write(audioPath, audio.getBytes());
-
-        // Bước 4: Gọi file Python để xử lý AI
-        // Lưu ý: đổi "python3" thành "python" nếu bạn đang dùng Windows
-        String pythonPath = "C:\\Users\\Admin\\AppData\\Local\\Programs\\Python\\Python310\\python.exe";
-        String aiPath = "D:\\DemoAI\\diarize_transcribe.py";
-        ProcessBuilder pb = new ProcessBuilder(
-                pythonPath,
-                aiPath,
-                audioPath.toString(),
-                meetingId.toString()
-        );
-
-
-        pb.redirectErrorStream(true); // Gộp stdout và stderr
-
-        Process process = pb.start();
-
-        // Bước 5: Đọc log từ script Python
-        StringBuilder logBuilder = new StringBuilder();
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                System.out.println(line);
-                logBuilder.append(line).append("\n");
-            }
-        }
-
-        // Bước 6: Trả kết quả về client
-        return ResponseEntity.ok("Uploaded & processing started.\nLog:\n" + logBuilder.toString());
+    private final IMeetingSummariesRepo summaries;
+    private final IMeetingRepo meetings;
+    private final IUserRepo users;
+    private final IParticipantsRepo participants;
+    private final GeminiMeetingService ai;
+    public MeetingSummariesController(IMeetingSummariesRepo summaries, IMeetingRepo meetings,
+            IUserRepo users, IParticipantsRepo participants, GeminiMeetingService ai) {
+        this.summaries = summaries;
+        this.meetings = meetings;
+        this.users = users;
+        this.participants = participants;
+        this.ai = ai;
     }
-
-    // Hàm tiện ích kiểm tra hệ điều hành
-    private boolean isWindows() {
-        return System.getProperty("os.name").toLowerCase().contains("win");
+    public record SummaryView(Long id, String summary, String transcript, LocalDateTime createdAt) {}
+    private SummaryView view(MeetingSummaries value) {
+        return new SummaryView(value.getId(), value.getSummary(), value.getTranscript(), value.getCreateAt());
     }
-
-    @PostMapping("/meeting/save-summary")
-    public ResponseEntity<?> saveSummary(@RequestParam Long meetingId) throws IOException {
-
-        Path resultPath = Paths.get("D:\\sumaries\\meeting_summary_" + meetingId + ".json");
-        if (!Files.exists(resultPath)) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Summary not found.");
-        }
-
-        String json = Files.readString(resultPath);
-        ObjectMapper mapper = new ObjectMapper();
-        JsonNode node = mapper.readTree(json);
-
-        String summary = node.get("summary").asText();
-        String transcript = node.get("transcript").asText();
-
-        MeetingSummaries ms = new MeetingSummaries();
-        ms.setMeeting(meetingRepo.findById(meetingId).get());
-        ms.setSummary(summary);
-        ms.setCreateAt(LocalDateTime.now());
-        meetingSummariesRepo.save(ms);
-
-        // Optional: lưu transcript vào file hoặc nơi khác nếu cần
-        return ResponseEntity.ok("Saved summary successfully.");
+    private Meeting authorize(Long meetingId, Authentication auth) {
+        if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getPrincipal()))
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Vui lòng đăng nhập.");
+        Meeting meeting = meetings.findById(meetingId).orElseThrow(() ->
+                new ResponseStatusException(HttpStatus.NOT_FOUND, "Cuộc họp không tồn tại."));
+        User user = users.findByUserName(auth.getName());
+        if (user == null || (!(meeting.getUser() != null && Objects.equals(meeting.getUser().getId(), user.getId()))
+                && participants.findByUserIdAndMeetingId(user.getId(), meetingId) == null))
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Bạn không có quyền truy cập cuộc họp này.");
+        return meeting;
     }
-
+    @GetMapping("/{meetingId}/summary")
+    public ResponseEntity<SummaryView> get(@PathVariable Long meetingId, Authentication auth) {
+        authorize(meetingId, auth);
+        return summaries.findFirstByMeetingIdOrderByCreateAtDescIdDesc(meetingId)
+                .map(value -> ResponseEntity.ok(view(value))).orElseGet(() -> ResponseEntity.noContent().build());
+    }
+    @PostMapping(value = "/upload-audio", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public SummaryView summarize(@RequestParam MultipartFile audio, @RequestParam Long meetingId,
+                                 Authentication auth) throws IOException {
+        Meeting meeting = authorize(meetingId, auth);
+        if (audio.isEmpty()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Hãy chọn bản ghi có âm thanh.");
+        if (audio.getSize() > 14 * 1024 * 1024) throw new ResponseStatusException(HttpStatus.PAYLOAD_TOO_LARGE,
+                "Bản ghi AI tối đa 14 MB. Hãy cắt ngắn hoặc nén bản ghi.");
+        String name = Optional.ofNullable(audio.getOriginalFilename()).orElse("").toLowerCase(Locale.ROOT);
+        String extension = name.substring(name.lastIndexOf('.') + 1);
+        String mime = Map.of("mp3", "audio/mpeg", "wav", "audio/wav", "webm", "audio/webm",
+                "ogg", "audio/ogg", "flac", "audio/flac", "m4a", "audio/mp4", "mp4", "video/mp4").get(extension);
+        if (mime == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                "Hỗ trợ MP3, WAV, WEBM, OGG, FLAC, M4A và MP4.");
+        GeminiMeetingService.Result result = ai.summarize(audio.getBytes(), mime);
+        MeetingSummaries saved = new MeetingSummaries();
+        saved.setMeeting(meeting);
+        saved.setSummary(result.summary());
+        saved.setTranscript(result.transcript());
+        saved.setCreateAt(LocalDateTime.now());
+        return view(summaries.save(saved));
+    }
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<Map<String, String>> error(ResponseStatusException e) {
+        return ResponseEntity.status(e.getStatusCode()).body(Map.of("message", Objects.requireNonNullElse(e.getReason(), "Xử lý AI thất bại.")));
+    }
 }

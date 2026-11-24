@@ -7,6 +7,7 @@ import org.example.meetingbe.service.meetingRecording.IMeetingRecordingService;
 import org.example.meetingbe.service.meetingRecording.MeetingRecordingService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.http.ResponseEntity;
 
 import java.time.LocalDateTime;
 
@@ -17,8 +18,9 @@ public class MeetingRecordController {
     @Autowired
     IMeetingRecordingService meetingRecordingService;
     @GetMapping("/{meetingId}")
-    public MeetingRecording findByMeetingId(@PathVariable("meetingId") Long id){
-        return meetingRecordingService.findByMeetingId(id);
+    public ResponseEntity<MeetingRecording> findByMeetingId(@PathVariable("meetingId") Long id){
+        MeetingRecording recording = meetingRecordingService.findByMeetingId(id);
+        return recording == null ? ResponseEntity.noContent().build() : ResponseEntity.ok(recording);
     }
 
     @PostMapping("/")

@@ -23,11 +23,7 @@ public class MeetingRecordingService implements IMeetingRecordingService {
 
     @Override
     public MeetingRecording findByMeetingId(Long id) {
-        Optional<MeetingRecording> meetingRecording = meetingRecordingRepo.findByMeetingId(id);
-        if (meetingRecording == null){
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Meeting record does not exist");
-        }
-        return meetingRecording.get();
+        return meetingRecordingRepo.findByMeetingId(id).orElse(null);
     }
 
     @Override
