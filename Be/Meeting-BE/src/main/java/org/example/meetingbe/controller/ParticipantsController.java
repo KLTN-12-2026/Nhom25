@@ -85,11 +85,22 @@ public class ParticipantsController {
     public Participants addNew(@RequestParam("userName") String userName, @RequestParam("meetingCode") String meetingCode,
                                Authentication auth){
         String actor = authenticatedName(auth);
+        if (!auth.getName().equals(userName)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Bạn chỉ được tham gia bằng tài khoản của mình.");
+        }
         meetingRoles.state(meetingCode, actor);
         User user = userService.findByUserName(actor);
         Meeting meeting = meetingService.findByCode(meetingCode);
+        if (user == null || meeting == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy tài khoản hoặc phòng họp.");
+        }
         Participants participant =participantsService.findByUserIdAndMeetingId(user.getId(), meeting.getId());
         if (participant != null) {
+            if (participant.getLeftAt() != null) {
+                participant.setJoinAt(LocalDateTime.now());
+                participant.setLeftAt(null);
+                participantsService.save(participant);
+            }
             return participant;
         }
         participant = new Participants(LocalDateTime.now(),null,meeting,user);
