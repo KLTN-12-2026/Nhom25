@@ -1,0 +1,8 @@
+DTU MEET là hệ thống họp trực tuyến dành cho admin và user.
+Chức năng: đăng ký, đăng nhập, đăng nhập Google, thông tin cá nhân, tạo phòng, tham gia qua mã hoặc liên kết, lên lịch và lịch sử họp.
+Trong phòng họp có bật/tắt camera và microphone, chia sẻ màn hình, chat với thành viên, sao chép liên kết mời và rời phòng.
+Ghi hình trong phòng được tải về thiết bị. Tóm tắt AI cho phép tải bản ghi lên để tạo bản chép lời và tóm tắt.
+Trợ lý AI là cuộc trò chuyện riêng của người hỏi, không gửi cho thành viên khác. Trợ lý chưa nghe trực tiếp âm thanh hay đọc nội dung cuộc họp.
+Admin có trang quản lý người dùng, liên hệ và thống kê. Hệ thống có trang thanh toán và liên hệ.
+Frontend dùng Angular, backend Spring Boot, cơ sở dữ liệu MySQL, phòng họp dùng WebRTC và WebSocket. AI dùng Gemini qua backend.
+Chưa có thông tin xác nhận về giá gói, giới hạn người tham gia, SLA hoặc chính sách thanh toán cụ thể.

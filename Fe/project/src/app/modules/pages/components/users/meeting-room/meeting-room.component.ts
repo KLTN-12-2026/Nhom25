@@ -6,6 +6,9 @@ import { JwtService } from 'src/app/services/jwt.service';
 import { MeetingService } from 'src/app/services/meeting.service';
 import { MeetingRolesDto, MeetingRoleCommand } from 'src/app/models/DTO/MeetingRolesDto';
 import { ToastrService } from 'ngx-toastr';
+import { ParticipantsService } from 'src/app/services/participants.service';
+import { MeetingAiService } from 'src/app/services/meeting-ai.service';
+import { Subscription } from 'rxjs';
 
 declare global {
   interface MediaDevices {
@@ -19,6 +22,73 @@ declare global {
   styleUrls: ['./meeting-room.component.css']
 })
 export class MeetingRoomComponent implements OnInit, OnDestroy {
+  isAiOpen = false;
+  aiInput = '';
+  aiLoading = false;
+  aiReady = false;
+  aiJoining = false;
+  aiError = '';
+  aiMessages: { role: string; text: string }[] = [];
+  private aiRequest: Subscription;
+  @ViewChild('aiMessagesContainer') aiMessagesContainer: ElementRef;
+
+  toggleAi() {
+    this.isAiOpen = !this.isAiOpen;
+    if (this.isAiOpen) { this.isChatOpen = false; }
+    this.scrollAi();
+  }
+
+  private scrollAi() {
+    setTimeout(() => {
+      if (this.aiMessagesContainer) {
+        const element = this.aiMessagesContainer.nativeElement;
+        element.scrollTop = element.scrollHeight;
+      }
+    }, 0);
+  }
+
+  sendAiQuestion() {
+    const question = this.aiInput.trim();
+    if (!question || question.length > 2000 || this.aiLoading || !this.aiReady) { return; }
+    this.aiMessages.push({ role: 'user', text: question });
+    this.aiInput = '';
+    this.aiError = '';
+    this.aiLoading = true;
+    this.scrollAi();
+    this.aiRequest = this.meetingAi.ask(this.roomId, question).subscribe({
+      next: result => {
+        this.aiMessages.push({ role: 'assistant', text: result.answer });
+        this.aiLoading = false;
+        this.scrollAi();
+      },
+      error: err => {
+        this.aiLoading = false;
+        this.aiInput = question;
+        this.aiError = err.error && err.error.message
+          ? err.error.message : 'Không thể kết nối trợ lý AI. Vui lòng thử lại.';
+        this.scrollAi();
+      }
+    });
+  }
+
+  prepareAiChat() {
+    if (this.aiJoining) { return; }
+    this.aiJoining = true;
+    this.aiError = '';
+    this.participantsService.addParticipant(this.participantId, this.roomId).subscribe({
+      next: () => {
+        this.aiReady = true;
+        this.aiJoining = false;
+      },
+      error: err => {
+        this.aiReady = false;
+        this.aiJoining = false;
+        this.aiError = err.status === 401
+          ? 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại để hỏi AI.'
+          : 'Chưa xác nhận được tham gia phòng. Hãy bấm Thử kết nối lại.';
+      }
+    });
+  }
   currentTime: string = '';
   private intervalId: any;
 
@@ -65,6 +135,8 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
     private route: ActivatedRoute,
     private meetingService: MeetingService,
     private toast: ToastrService,
+    private participantsService: ParticipantsService,
+    private meetingAi: MeetingAiService,
     private cdr: ChangeDetectorRef,
     private router: Router
   ) {
@@ -556,6 +628,7 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
 
   toggleChat() {
     this.isChatOpen = !this.isChatOpen;
+    if (this.isChatOpen) { this.isAiOpen = false; }
     if (this.isChatOpen) {
       this.hasNewMessages = false;
       this.scrollChatToBottom();
@@ -883,6 +956,7 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
     this.roles = state;
     this.rolesError = '';
     this.rolesLoading = false;
+    if (!state.ended && !this.aiReady && !this.aiJoining) this.prepareAiChat();
     const current = this.roleLabel(this.participantId);
     if (previous !== current && current) this.toast.info('Vai trò hiện tại của bạn là ' + current + '.');
     if (state.ended) {
@@ -993,6 +1067,7 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
 
   private cleanupRoom(): void {
     this.leaving = true;
+    if (this.aiRequest) { this.aiRequest.unsubscribe(); }
     clearInterval(this.intervalId);
     clearInterval(this.heartbeatTimer);
     clearTimeout(this.reconnectTimer);

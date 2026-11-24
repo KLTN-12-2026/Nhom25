@@ -61,6 +61,31 @@
     <app-meeting-participants *ngIf="isParticipantsOpen" [state]="roles" [myName]="participantId"
       [busy]="roleBusy" [loading]="rolesLoading" [error]="rolesError"
       (retry)="refreshRoles()" (command)="changeMeetingRole($event)"></app-meeting-participants>
+    <section class="chat-panel ai-panel" [class.open]="isAiOpen" [attr.aria-hidden]="!isAiOpen">
+      <div class="chat-header">
+        <strong>Trợ lý AI · DTU MEET</strong>
+        <button class="toggle-chat-btn" (click)="toggleAi()" aria-label="Đóng trợ lý AI">×</button>
+      </div>
+      <p class="ai-notice">Chat riêng · Chỉ hỗ trợ dự án DTU MEET. AI chưa nghe nội dung cuộc họp.</p>
+      <div class="chat-messages" #aiMessagesContainer role="log" aria-live="polite">
+        <p *ngIf="!aiMessages.length">Bạn có thể hỏi: “Làm sao chia sẻ màn hình?” hoặc “Tóm tắt AI hoạt động thế nào?”</p>
+        <div *ngFor="let message of aiMessages" class="chat-message" [class.mine]="message.role === 'user'">
+          <div class="message-sender"><b>{{ message.role === 'user' ? 'Bạn' : 'Trợ lý AI' }}</b></div>
+          <div class="message-content ai-answer">{{ message.text }}</div>
+        </div>
+        <p *ngIf="aiLoading" role="status">AI đang trả lời…</p>
+        <p *ngIf="aiJoining" role="status">Đang kết nối trợ lý AI…</p>
+        <p *ngIf="aiError" class="ai-error" role="alert">{{ aiError }}</p>
+        <button *ngIf="!aiReady && !aiJoining" type="button" (click)="prepareAiChat()">Thử kết nối lại</button>
+      </div>
+      <form class="chat-input" (ngSubmit)="sendAiQuestion()">
+        <input name="aiQuestion" [(ngModel)]="aiInput" maxlength="2000" aria-label="Câu hỏi cho AI"
+          placeholder="Hỏi về DTU MEET…" [disabled]="aiLoading">
+        <button type="submit" aria-label="Gửi câu hỏi cho AI" [disabled]="aiLoading || !aiReady || !aiInput.trim()">
+          <i class="fas fa-paper-plane"></i>
+        </button>
+      </form>
+    </section>
 
     <!-- Chat Panel -->
     <div class="chat-panel" [ngClass]="{'open': isChatOpen}">
@@ -115,6 +140,10 @@
     <button class="control-btn" (click)="toggleChat()" title="Mở/đóng chat">
       <i class="fas fa-comments"></i>
       <span class="new-message-badge" *ngIf="hasNewMessages"></span>
+    </button>
+    <button class="control-btn" [class.active]="isAiOpen" (click)="toggleAi()" title="Trợ lý AI"
+      aria-label="Mở trợ lý AI" [attr.aria-expanded]="isAiOpen">
+      <i class="fas fa-robot"></i>
     </button>
     <button class="control-btn disconnect-btn" [disabled]="roleBusy" (click)="disconnect()" title="Rời phòng">
       <i class="fas fa-sign-out-alt"></i>
