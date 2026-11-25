@@ -27,6 +27,8 @@ public class MeetingRolesService {
     private final IMeetingRoleHistoryRepo history;
     private final TransactionTemplate transactions;
     private final MeetingRoomSessions sessions;
+    @org.springframework.beans.factory.annotation.Autowired
+    private org.example.meetingbe.service.rewards.MeetingRewardService rewards;
 
     public MeetingRolesService(IMeetingRepo meetings, IUserRepo users, IParticipantsRepo participants,
             IMeetingRoleHistoryRepo history, TransactionTemplate transactions, MeetingRoomSessions sessions) {
@@ -69,6 +71,7 @@ public class MeetingRolesService {
         if (member.getLeftAt() != null) member.setJoinAt(LocalDateTime.now());
         member.setLeftAt(null);
         participants.save(member);
+        if (rewards != null) rewards.joined(meeting, user);
     }
 
     private void active(Meeting meeting, User user) {
@@ -212,6 +215,7 @@ public class MeetingRolesService {
                         case "REMOVE" -> {
                             Participants removed = membership(meeting, targetId);
                             removed.setRemoved(true);
+                            if (rewards != null) rewards.left(meeting, targetId);
                             removed.setLeftAt(LocalDateTime.now());
                             participants.save(removed);
                             if (targetId.equals(oldCoHost)) meeting.setCoHost(null);
@@ -241,6 +245,7 @@ public class MeetingRolesService {
     }
 
     private void markLeft(Meeting meeting, Long id) {
+        if (rewards != null) rewards.left(meeting, id);
         Participants member = membership(meeting, id);
         if (member != null) {
             member.setLeftAt(LocalDateTime.now());
@@ -291,6 +296,9 @@ public class MeetingRolesService {
         synchronized (sessions.lock(c.room())) {
             sessions.remove(sessionId);
             if (!sessions.online(c.room(), c.userId())) {
+                transactions.executeWithoutResult(status -> {
+                    if (rewards != null) rewards.left(locked(c.room()), c.userId());
+                });
                 absences.put(c.room() + ":" + c.userId(), new Absence(c.room(), c.userId(), Instant.now().plusSeconds(30)));
                 sessions.broadcast(c.room(), Map.of("type", "participant-left", "roomId", c.room(), "senderId", c.userName()));
             }

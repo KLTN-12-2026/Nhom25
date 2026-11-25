@@ -2,8 +2,10 @@ import { NgModule } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ComponentsComponent } from './components.component';
 import { UsersManagementComponent } from './admin/users-management/users-management.component';
+import { StreakManagementComponent } from './admin/streak-management/streak-management.component';
 import { StatisticalManagementComponent } from './admin/statistical-management/statistical-management.component';
 import { HomeMainComponent } from './users/home-main/home-main.component';
+import { UserStreakComponent } from './users/user-streak/user-streak.component';
 import { ChattingComponent } from './users/chatting/chatting.component';
 import { UserInfoComponent } from './users/user-info/user-info.component';
 import { MeetingHistoryComponent } from './users/meeting-history/meeting-history.component';
@@ -22,10 +24,28 @@ import { ContactComponent } from './users/contact/contact.component';
 import { ResultPayComponent } from './users/result-pay/result-pay.component';
 import { MeetingParticipantsComponent } from './users/meeting-participants/meeting-participants.component';
 
-
-
 @NgModule({
-  declarations: [MeetingParticipantsComponent, ComponentsComponent, UsersManagementComponent, StatisticalManagementComponent, HomeMainComponent, ChattingComponent, UserInfoComponent, MeetingHistoryComponent, SchedulingComponent, PaymentComponent, CreatingRoomComponent, MeetingRoomComponent, SumaryAiComponent, RecordingComponent, ContactManagementComponent, ContactComponent, ResultPayComponent],
+  declarations: [
+    MeetingParticipantsComponent,
+    ComponentsComponent,
+    UsersManagementComponent,
+    StatisticalManagementComponent,
+    HomeMainComponent,
+    UserStreakComponent,
+    ChattingComponent,
+    UserInfoComponent,
+    MeetingHistoryComponent,
+    SchedulingComponent,
+    PaymentComponent,
+    CreatingRoomComponent,
+    MeetingRoomComponent,
+    SumaryAiComponent,
+    RecordingComponent,
+    ContactManagementComponent,
+    ContactComponent,
+    ResultPayComponent,
+    StreakManagementComponent
+  ],
   imports: [
     CommonModule,
     ComponentsRoutingModule,

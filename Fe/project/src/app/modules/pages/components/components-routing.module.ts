@@ -3,9 +3,11 @@ import { CommonModule } from '@angular/common';
 import { RouterModule, Routes } from '@angular/router';
 import { ComponentsComponent } from './components.component';
 import { HomeMainComponent } from './users/home-main/home-main.component';
+import { UserStreakComponent } from './users/user-streak/user-streak.component';
 import { ContactManagementComponent } from './admin/contact-management/contact-management.component';
 import { StatisticalManagementComponent } from './admin/statistical-management/statistical-management.component';
 import { UsersManagementComponent } from './admin/users-management/users-management.component';
+import { StreakManagementComponent } from './admin/streak-management/streak-management.component';
 import { ChattingComponent } from './users/chatting/chatting.component';
 import { CreatingRoomComponent } from './users/creating-room/creating-room.component';
 import { MeetingHistoryComponent } from './users/meeting-history/meeting-history.component';
@@ -19,17 +21,19 @@ import { ContactComponent } from './users/contact/contact.component';
 import { AuthGuardService } from 'src/app/services/auth-guard.service';
 import { ResultPayComponent } from './users/result-pay/result-pay.component';
 
-
-
 const routes: Routes = [
   {
     path: '', component: ComponentsComponent,
     children: [
       { path: 'home-main', component: HomeMainComponent, canActivate: [AuthGuardService], data: { roles: ['ADMIN', 'USER'] } },
+      { path: 'user-streak', redirectTo: 'rewards', pathMatch: 'full' },
+      { path: 'rewards', component: UserStreakComponent, canActivate: [AuthGuardService], data: { roles: ['ADMIN', 'USER'] } },
       { path: 'contact-management', component: ContactManagementComponent, canActivate: [AuthGuardService], data: { roles: ['ADMIN', 'USER'] } },
       { path: 'statistical-management', component: StatisticalManagementComponent, canActivate: [AuthGuardService], data: { roles: ['ADMIN', 'USER'] } },
       { path: 'contact', component: ContactComponent, canActivate: [AuthGuardService], data: { roles: ['ADMIN', 'USER'] } },
       { path: 'users-management', component: UsersManagementComponent, canActivate: [AuthGuardService], data: { roles: ['ADMIN', 'USER'] } },
+      { path: 'streak-management', redirectTo: 'rewards-management', pathMatch: 'full' },
+      { path: 'rewards-management', component: StreakManagementComponent, canActivate: [AuthGuardService], data: { roles: ['ADMIN'] } },
       { path: 'chatting', component: ChattingComponent, canActivate: [AuthGuardService], data: { roles: ['ADMIN', 'USER'] } },
       { path: 'creating-room', component: CreatingRoomComponent, canActivate: [AuthGuardService], data: { roles: ['ADMIN', 'USER'] } },
       { path: 'meeting-history', component: MeetingHistoryComponent, canActivate: [AuthGuardService], data: { roles: ['ADMIN', 'USER'] } },

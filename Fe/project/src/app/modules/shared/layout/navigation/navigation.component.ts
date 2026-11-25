@@ -1,5 +1,9 @@
-import { Component, ElementRef, HostListener, Inject, OnInit, Renderer2 } from '@angular/core';
+import { Component, HostListener, OnInit, OnDestroy } from '@angular/core';
+import { Router } from '@angular/router';
+import { ToastrService } from 'ngx-toastr';
 import { PaymentService } from 'src/app/services/payment.service';
+import { MeetingRewardsService } from 'src/app/services/meeting-rewards.service';
+import { Subscription } from 'rxjs';
 import { UserService } from 'src/app/services/user.service';
 
 @Component({
@@ -7,18 +11,52 @@ import { UserService } from 'src/app/services/user.service';
   templateUrl: './navigation.component.html',
   styleUrls: ['./navigation.component.css']
 })
-export class NavigationComponent implements OnInit {
+export class NavigationComponent implements OnInit, OnDestroy {
   currentTime: string = '';
   private intervalId: any;
   dropdownVisible = false;
   adminDropdownVisible = false;
-  constructor(private userService: UserService, private paymentService: PaymentService){
 
-  }
+  // --- Biến hiển thị Ngọn lửa Streak ---
+  isStudentUser = false;
+  rewardBalance = 0;
+  private rewardSubscription?: Subscription;
+  showPlusOneBadge = false;
+
+  constructor(
+    private userService: UserService,
+    private paymentService: PaymentService,
+    private rewardService: MeetingRewardsService,
+    private toastr: ToastrService,
+    private router: Router
+  ) {}
+
   ngOnInit() {
     this.updateTime();
     this.intervalId = setInterval(() => this.updateTime(), 60000);
     this.setupNavi();
+    this.loadRewardBalance();
+    this.rewardSubscription = this.rewardService.changed.subscribe(() => this.loadRewardBalance());
+  }
+
+  goToStreakPage(): void {
+    this.router.navigate(['/pages/components/rewards']);
+  }
+
+  loadRewardBalance() {
+    this.isStudentUser = !!localStorage.getItem('Name_key') && !this.setupNavi();
+    if (!this.isStudentUser) return;
+    this.rewardService.me().subscribe({next: res => {
+      this.rewardBalance = res.balance;
+      const recent = res.history.filter((e: any) => e.points > 0 && e.meetingCode && Date.now() - new Date(e.createdAt).getTime() < 120000);
+      recent.forEach((entry: any) => {
+        const key = 'reward-notice-' + entry.id;
+        if (!sessionStorage.getItem(key)) {
+          sessionStorage.setItem(key, '1');
+          this.toastr.success('+' + entry.points + ' điểm: ' + entry.description, 'Điểm thưởng cuộc họp');
+        }
+      });
+    }, error: () => {this.rewardBalance = 0;}});
   }
 
   updateTime() {
@@ -30,53 +68,40 @@ export class NavigationComponent implements OnInit {
 
   ngOnDestroy() {
     clearInterval(this.intervalId);
+    this.rewardSubscription?.unsubscribe();
   }
 
   @HostListener('document:click', ['$event'])
   onDocumentClick(event: MouseEvent) {
     const target = event.target as HTMLElement;
-    const isInside = target.closest('.user-menu');
-    if (!isInside) {
+    if (!target.closest('.user-menu')) {
       this.dropdownVisible = false;
     }
   }
-  
+
   toggleDropdown(): void {
     this.dropdownVisible = !this.dropdownVisible;
-    this.adminDropdownVisible = false; // ẩn dropdown admin khi mở user
+    this.adminDropdownVisible = false;
   }
-  
+
   toggleAdminDropdown(): void {
     this.adminDropdownVisible = !this.adminDropdownVisible;
-    this.dropdownVisible = false; // ẩn dropdown user khi mở admin
+    this.dropdownVisible = false;
   }
 
-  logout(){
+  logout() {
     this.userService.logout();
   }
-  
-  // payment(){
-  //   console.log("pay");
-  //   this.paymentService.submitPay(1000000, "abcd").subscribe(next =>{
-  //     this.url = next;
-  //     console.log(this.url);
-  //     const redirectUrl = next.redirectUrl;
-  //     window.location.href = redirectUrl;
-  //   })
-
-    
-  // }
-
 
   setupNavi(): boolean {
     const roleData = localStorage.getItem('Role_Key');
+    if (!roleData) return false;
     const roles = JSON.parse(roleData);
     for (let role of roles) {
       if (role.authority === 'ADMIN') {
-        return true
+        return true;
       }
     }
     return false;
   }
-
 }

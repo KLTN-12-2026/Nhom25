@@ -17,6 +17,12 @@ import java.util.Optional;
 @Transactional
 @Repository
 public interface IUserRepo extends JpaRepository<User, Long> {
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("select u from User u where u.id = :id")
+    Optional<User> lockRewardUser(@Param("id") Long id);
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("select u from User u where u.userName = :name")
+    Optional<User> lockRewardUserByName(@Param("name") String name);
     @Query("select u from User as u where u.userName like :userName")
     Page<User> findByUserName(String userName,Pageable pageable);
     User findByUserName(String userName);

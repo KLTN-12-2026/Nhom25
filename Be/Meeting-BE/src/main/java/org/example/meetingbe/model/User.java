@@ -202,8 +202,11 @@ public class User {
         this.userName = userName;
     }
 
+    private java.time.Instant rewardVipExpiresAt;
+    public java.time.Instant getRewardVipExpiresAt() { return rewardVipExpiresAt; }
+    public void setRewardVipExpiresAt(java.time.Instant value) { rewardVipExpiresAt=value; }
     public Boolean getVip() {
-        return isVip;
+        return Boolean.TRUE.equals(isVip) || (rewardVipExpiresAt != null && rewardVipExpiresAt.isAfter(java.time.Instant.now()));
     }
 
     public void setVip(Boolean vip) {

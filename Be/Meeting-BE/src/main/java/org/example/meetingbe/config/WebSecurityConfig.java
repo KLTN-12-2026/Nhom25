@@ -52,7 +52,7 @@ public class WebSecurityConfig {
                 .exceptionHandling().authenticationEntryPoint(jwtEntryPoint).and()
                 .sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS).and()
                 .authorizeRequests()
-                .requestMatchers("/api/meetings/**").authenticated()
+                .requestMatchers("/api/meetings/**", "/api/rewards/**").authenticated()
                 .requestMatchers("/signaling", "/signaling/**").permitAll()
                 .requestMatchers("api/user/login", "api/user/register","api/**", "api/user/google","api/user/count","api/page","api/updateContact","api/payment/revenue/getByYear").permitAll();
         http.authenticationProvider(authenticationProvider());
