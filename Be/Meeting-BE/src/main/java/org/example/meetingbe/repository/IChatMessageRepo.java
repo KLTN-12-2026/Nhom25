@@ -8,5 +8,5 @@ import java.util.List;
 
 @Repository
 public interface IChatMessageRepo extends JpaRepository<ChatMessage, Long> {
-        List<ChatMessage> findByRoomIdOrderByTimestampAsc(String roomId);
+        List<ChatMessage> findByRoomIdOrderByTimestampAscIdAsc(String roomId);
 }

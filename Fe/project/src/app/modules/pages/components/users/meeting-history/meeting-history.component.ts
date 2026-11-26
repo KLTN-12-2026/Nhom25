@@ -1,4 +1,5 @@
 import { Component, OnInit } from '@angular/core';
+import { MeetingService } from 'src/app/services/meeting.service';
 import { ParticipantsService } from 'src/app/services/participants.service';
 import { UserService } from '../../../../../services/user.service';
 import { FormControl, FormGroup } from '@angular/forms';
@@ -40,7 +41,26 @@ export class MeetingHistoryComponent implements OnInit {
 
 
 
+  downloadingMeetingText = false;
+  showDownloadFormats = false;
+
+  downloadMeetingText(format: 'txt' | 'docx'): void {
+    const roomCode = this.recordUpdate?.meeting?.code;
+    if (!roomCode || this.downloadingMeetingText) {
+      return;
+    }
+    this.showDownloadFormats = false;
+    this.downloadingMeetingText = true;
+    this.meetingService.downloadMeetingText(roomCode, format).subscribe(() => {
+      this.downloadingMeetingText = false;
+    }, error => {
+      this.downloadingMeetingText = false;
+      this.toast.error(error instanceof Error ? error.message : 'Không tải được tệp ghi chú và chat.');
+    });
+  }
+
   constructor(
+    private meetingService: MeetingService,
     private recordSer: MeetingRecordService,
     private service: ParticipantsService,
     private toast: ToastrService,
@@ -71,6 +91,7 @@ export class MeetingHistoryComponent implements OnInit {
   }
 
   getIdBlog(item) {
+    this.showDownloadFormats = false;
     this.selectedFile = null;
     this.aiResult = null;
     this.aiError = '';
