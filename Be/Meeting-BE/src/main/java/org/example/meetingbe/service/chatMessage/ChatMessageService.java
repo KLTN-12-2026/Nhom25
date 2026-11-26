@@ -13,12 +13,12 @@ public class ChatMessageService {
     @Autowired
     private IChatMessageRepo chatMessageRepository;
 
-    public void saveChatMessage(String roomId, String senderId, String message) {
+    public ChatMessage saveChatMessage(String roomId, String senderId, String message) {
         ChatMessage chatMessage = new ChatMessage(roomId, senderId, message, LocalDateTime.now());
-        chatMessageRepository.save(chatMessage);
+        return chatMessageRepository.save(chatMessage);
     }
 
     public List<ChatMessage> getChatHistory(String roomId) {
-        return chatMessageRepository.findByRoomIdOrderByTimestampAsc(roomId);
+        return chatMessageRepository.findByRoomIdOrderByTimestampAscIdAsc(roomId);
     }
 }

@@ -1,7 +1,10 @@
 package org.example.meetingbe.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.example.meetingbe.model.ChatMessage;
+import java.time.LocalDateTime;
 import org.example.meetingbe.security.jwt.JwtTokenProvider;
+import org.example.meetingbe.service.chatMessage.ChatMessageService;
 import org.example.meetingbe.service.meeting.*;
 import org.junit.jupiter.api.*;
 import org.springframework.web.socket.*;
@@ -14,6 +17,7 @@ class WebSocketHandlerTest {
     private MeetingRoomSessions sessions;
     private MeetingRolesService roles;
     private WebSocketHandler handler;
+    private ChatMessageService chat;
     private WebSocketSession sender;
     private WebSocketSession receiver;
 
@@ -23,7 +27,8 @@ class WebSocketHandlerTest {
         roles = mock(MeetingRolesService.class);
         JwtTokenProvider jwt = mock(JwtTokenProvider.class);
         when(jwt.validateToken("valid")).thenReturn(true);
-        handler = new WebSocketHandler(sessions, roles, jwt, new ObjectMapper());
+        chat = mock(ChatMessageService.class);
+        handler = new WebSocketHandler(sessions, roles, jwt, new ObjectMapper(), chat);
         sender = socket("sender");
         receiver = socket("receiver");
         sender.getAttributes().put("meetingToken", "valid");
@@ -69,4 +74,26 @@ class WebSocketHandlerTest {
         verify(receiver, never()).sendMessage(any());
         verifyNoInteractions(roles);
     }
+
+    @Test
+    void persistsChatUnderAuthenticatedRoomAndSenderBeforeBroadcast() throws Exception {
+        sessions.add("room", 1L, "actual-user", sender);
+        sessions.add("room", 2L, "receiver", receiver);
+        ChatMessage saved = new ChatMessage("room", "actual-user", "hello",
+                LocalDateTime.of(2026, 11, 26, 12, 0));
+        saved.setId(17L);
+        when(chat.saveChatMessage("room", "actual-user", "hello")).thenReturn(saved);
+
+        handler.handleTextMessage(sender, new TextMessage(
+                "{\"type\":\"chat-message\",\"roomId\":\"other-room\",\"senderId\":\"host\",\"message\":\"hello\"}"));
+
+        var ordered = inOrder(chat, receiver);
+        ordered.verify(chat).saveChatMessage("room", "actual-user", "hello");
+        ordered.verify(receiver).sendMessage(argThat(message -> {
+            String json = message.getPayload().toString();
+            return json.contains("\"id\":17") && json.contains("\"senderId\":\"actual-user\"")
+                    && json.contains("\"roomId\":\"room\"") && json.contains("2026-11-26T12:00");
+        }));
+    }
+
 }

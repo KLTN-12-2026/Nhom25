@@ -108,7 +108,8 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
   signalQueue: Map<string, Array<{ type: string; signal: any }>> = new Map();
   pendingIceCandidates: Map<string, RTCIceCandidate[]> = new Map();
   participantId: string;
-  chatMessagesList: { senderId: string; message: string; timestamp: Date }[] = [];
+  chatMessagesList: { id: number; senderId: string; message: string; timestamp: Date }[] = [];
+  private chatHistoryLoaded = false;
   chatInput: string = '';
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
@@ -154,7 +155,6 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
     // Joining the room must not wait for the browser's camera permission dialog.
     this.mediaReady = this.startWebRTC();
     this.connectWebSocket();
-    this.loadChatHistory();
     await this.mediaReady;
     if (this.leaving) {
       this.localStream?.getTracks().forEach(track => track.stop());
@@ -166,15 +166,15 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
   loadChatHistory() {
     this.meetingService.getChatHistory(this.roomId).subscribe({
       next: (messages: any[]) => {
-        this.chatMessagesList = messages.map(msg => ({
-          senderId: msg.senderId,
-          message: msg.message,
-          timestamp: new Date(msg.timestamp)
-        }));
+        const history = messages.map(msg => ({ ...msg, timestamp: new Date(msg.timestamp) }));
+        const messagesById = new Map(history.concat(this.chatMessagesList).map(msg => [msg.id, msg]));
+        this.chatMessagesList = Array.from(messagesById.values()).sort((a, b) =>
+          a.timestamp.getTime() - b.timestamp.getTime() || a.id - b.id);
         this.cdr.detectChanges();
         this.scrollChatToBottom();
       },
       error: (err) => {
+        this.chatHistoryLoaded = false;
         console.error('Error loading chat history:', err);
         this.errorMessage = 'Không thể tải lịch sử chat. Vui lòng thử lại.';
         this.cdr.detectChanges();
@@ -393,6 +393,7 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
 
   connectWebSocket() {
     if (this.leaving) return;
+    this.chatHistoryLoaded = false;
     const socket = new WebSocket('ws://localhost:8080/signaling');
     this.ws = socket;
 
@@ -453,6 +454,25 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
         }
 
         if (this.handleMeetingEvent(signal)) return;
+
+        if (signal.type === 'chat-error') {
+          this.toast.error(signal.message);
+          return;
+        }
+        if (signal.type === 'chat-message') {
+          if (!this.chatMessagesList.some(message => message.id === signal.id)) {
+            this.chatMessagesList.push({
+              id: signal.id,
+              senderId: signal.senderId,
+              message: signal.message,
+              timestamp: new Date(signal.timestamp)
+            });
+          }
+          this.hasNewMessages = !this.isChatOpen && signal.senderId !== this.participantId;
+          this.cdr.detectChanges();
+          this.scrollChatToBottom();
+          return;
+        }
 
         // Room state and heartbeats remain responsive while media permission is pending.
         if (['offer', 'answer', 'ice-candidate', 'new-participant'].includes(signal.type)) {
@@ -537,18 +557,7 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
               : peer
           );
           this.cdr.detectChanges();
-        } else if (signal.type === 'chat-message') {
-          console.log('Received chat message from:', peerId, signal.message);
-          this.chatMessagesList.push({
-            senderId: peerId,
-            message: signal.message,
-            timestamp: new Date()
-          });
-          if (!this.isChatOpen) {
-            this.hasNewMessages = true;
-          }
-          this.cdr.detectChanges();
-          this.scrollChatToBottom();
+
         }
       } catch (err) {
         console.error('Error processing WebSocket message:', err);
@@ -610,11 +619,7 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
 
     try {
       this.ws.send(JSON.stringify(chatMessage));
-      this.chatMessagesList.push({
-        senderId: this.participantId,
-        message: message,
-        timestamp: new Date()
-      });
+
       this.chatInput = '';
       this.hasNewMessages = false;
       this.cdr.detectChanges();
@@ -624,6 +629,117 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
       this.errorMessage = 'Lỗi khi gửi tin nhắn. Vui lòng thử lại.';
       this.cdr.detectChanges();
     }
+  }
+
+  isNoteOpen = false;
+  noteLoaded = false;
+  noteBusy = false;
+  noteContent = '';
+  savedNote = '';
+  noteStatus = '';
+  downloadingMeetingText = false;
+  showDownloadFormats = false;
+
+  downloadMeetingText(format: 'txt' | 'docx'): void {
+    this.showDownloadFormats = false;
+    this.downloadingMeetingText = true;
+    this.meetingService.downloadMeetingText(this.roomId, format).subscribe(() => {
+      this.downloadingMeetingText = false;
+    }, error => {
+      this.downloadingMeetingText = false;
+      this.noteStatus = error instanceof Error ? error.message : 'Không tải được tệp. Vui lòng thử lại.';
+    });
+  }
+
+  notePosition: { x: number; y: number } | null = null;
+  private noteDrag: { pointerId: number; offsetX: number; offsetY: number } | null = null;
+
+  startNoteDrag(event: PointerEvent, panel: HTMLElement): void {
+    if (!event.isPrimary || event.button !== 0) {
+      return;
+    }
+    const handle = event.currentTarget as HTMLElement;
+    const bounds = panel.getBoundingClientRect();
+    this.noteDrag = {
+      pointerId: event.pointerId,
+      offsetX: event.clientX - bounds.left,
+      offsetY: event.clientY - bounds.top
+    };
+    handle.setPointerCapture(event.pointerId);
+  }
+
+  moveNoteDrag(event: PointerEvent, panel: HTMLElement): void {
+    const drag = this.noteDrag;
+    if (drag && drag.pointerId === event.pointerId) {
+      this.positionNote(panel, event.clientX - drag.offsetX, event.clientY - drag.offsetY);
+    }
+  }
+
+  endNoteDrag(event: PointerEvent): void {
+    if (this.noteDrag?.pointerId === event.pointerId) {
+      this.noteDrag = null;
+    }
+  }
+
+  moveNoteWithKeyboard(event: KeyboardEvent, panel: HTMLElement): void {
+    const directions = { ArrowLeft: [-16, 0], ArrowRight: [16, 0], ArrowUp: [0, -16], ArrowDown: [0, 16] };
+    const movement = directions[event.key];
+    if (!Array.isArray(movement)) {
+      return;
+    }
+    event.preventDefault();
+    const bounds = panel.getBoundingClientRect();
+    this.positionNote(panel, bounds.left + movement[0], bounds.top + movement[1]);
+  }
+
+  keepNoteInView(panel: HTMLElement): void {
+    if (this.notePosition) {
+      this.positionNote(panel, this.notePosition.x, this.notePosition.y);
+    }
+  }
+
+  private positionNote(panel: HTMLElement, x: number, y: number): void {
+    const bounds = panel.getBoundingClientRect();
+    this.notePosition = {
+      x: Math.max(0, Math.min(x, document.documentElement.clientWidth - bounds.width)),
+      y: Math.max(0, Math.min(y, document.documentElement.clientHeight - bounds.height))
+    };
+  }
+
+  toggleNote(): void {
+    this.noteDrag = null;
+    this.notePosition = null;
+    this.showDownloadFormats = false;
+    this.isNoteOpen = !this.isNoteOpen;
+    if (this.isNoteOpen && !this.noteLoaded && !this.noteBusy) {
+      this.noteBusy = true;
+      this.noteStatus = 'Đang tải ghi chú…';
+      this.meetingService.getNote(this.roomId).subscribe(note => {
+        this.noteContent = this.savedNote = note.content;
+        this.noteLoaded = true;
+        this.noteBusy = false;
+        this.noteStatus = '';
+      }, () => {
+        this.noteBusy = false;
+        this.noteStatus = 'Không tải được ghi chú. Đóng và mở lại để thử lại.';
+      });
+    }
+  }
+
+  saveNote(): void {
+    if (!this.noteLoaded || this.noteBusy) {
+      return;
+    }
+    this.noteBusy = true;
+    this.noteStatus = 'Đang lưu…';
+    this.meetingService.saveNote(this.roomId, this.noteContent).subscribe(note => {
+      this.savedNote = note.content;
+      this.noteBusy = false;
+      this.noteStatus = 'Đã lưu ghi chú.';
+    }, () => {
+      this.noteBusy = false;
+      this.noteStatus = 'Không lưu được. Bạn có thể thử lại.';
+    });
   }
 
   toggleChat() {
@@ -999,6 +1115,10 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
     }
     if (signal.type === 'meeting-roles-updated') {
       this.applyRoles(signal.state);
+      if (!this.chatHistoryLoaded) {
+        this.chatHistoryLoaded = true;
+        this.loadChatHistory();
+      }
       return true;
     }
     if (signal.type !== 'meeting-command') return false;

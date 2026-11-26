@@ -87,7 +87,43 @@
       </form>
     </section>
 
-    <!-- Chat Panel -->
+    <!-- Note Panel -->
+    <section *ngIf="isNoteOpen" #notePanel class="meeting-note-panel" aria-label="Ghi chú cá nhân"
+      [class.meeting-note-positioned]="notePosition"
+      [style.left.px]="notePosition?.x" [style.top.px]="notePosition?.y"
+      (window:resize)="keepNoteInView(notePanel)">
+      <div class="chat-header">
+        <strong class="meeting-note-handle" tabindex="0"
+          aria-label="Di chuyển ghi chú cá nhân. Dùng các phím mũi tên."
+          (pointerdown)="startNoteDrag($event, notePanel)"
+          (pointermove)="moveNoteDrag($event, notePanel)"
+          (lostpointercapture)="endNoteDrag($event)"
+          (keydown)="moveNoteWithKeyboard($event, notePanel)">
+          Ghi chú cá nhân
+        </strong>
+        <button type="button" class="toggle-chat-btn" (click)="toggleNote()" aria-label="Đóng ghi chú">×</button>
+      </div>
+      <label for="meeting-note">Nội dung ghi chú</label>
+      <textarea id="meeting-note" [(ngModel)]="noteContent" rows="7" maxlength="10000"
+        [disabled]="!noteLoaded || noteBusy"></textarea>
+      <div class="meeting-note-actions">
+        <button type="button" class="btn btn-danger" (click)="saveNote()"
+          [disabled]="!noteLoaded || noteBusy || noteContent === savedNote">
+          Lưu ghi chú
+        </button>
+        <button type="button" class="btn btn-danger" (click)="showDownloadFormats = !showDownloadFormats"
+          [attr.aria-expanded]="showDownloadFormats"
+          [disabled]="!noteLoaded || noteBusy || downloadingMeetingText || noteContent !== savedNote">
+          {{ downloadingMeetingText ? 'Đang tải…' : 'Tải ghi chú và chat' }}
+        </button>
+      </div>
+      <div *ngIf="showDownloadFormats && noteContent === savedNote && !noteBusy" class="mt-2">
+        <button type="button" (click)="downloadMeetingText('docx')">Word (.docx)</button>
+        <button type="button" (click)="downloadMeetingText('txt')">Notepad (.txt)</button>
+      </div>
+      <p *ngIf="noteLoaded && noteContent !== savedNote">Lưu thay đổi trước khi tải tệp.</p>
+      <p role="status">{{ noteStatus }}</p>
+    </section>
     <div class="chat-panel" [ngClass]="{'open': isChatOpen}">
       <div class="chat-header">
         <span>Chat</span>
@@ -105,7 +141,7 @@
         </div>
       </div>
       <div class="chat-input">
-        <input type="text" [(ngModel)]="chatInput" placeholder="Nhập tin nhắn..." (keyup.enter)="sendChatMessage()">
+        <input type="text" maxlength="255" [(ngModel)]="chatInput" placeholder="Nhập tin nhắn..." (keyup.enter)="sendChatMessage()">
         <button (click)="sendChatMessage()" [disabled]="!chatInput.trim()">
           <i class="fas fa-paper-plane"></i>
         </button>
@@ -136,6 +172,10 @@
       title="{{ isRecording ? 'Dừng ghi' : 'Bắt đầu ghi' }}">
       <i class="fas fa-record-vinyl"></i>
       <span class="recording-indicator" *ngIf="isRecording"></span>
+    </button>
+    <button type="button" class="control-btn" (click)="toggleNote()" [attr.aria-expanded]="isNoteOpen"
+      title="Ghi chú cá nhân" aria-label="Ghi chú cá nhân">
+      <i class="fas fa-sticky-note" aria-hidden="true"></i>
     </button>
     <button class="control-btn" (click)="toggleChat()" title="Mở/đóng chat">
       <i class="fas fa-comments"></i>

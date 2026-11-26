@@ -2,7 +2,9 @@ package org.example.meetingbe.config;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.example.meetingbe.model.ChatMessage;
 import org.example.meetingbe.model.User;
+import org.example.meetingbe.service.chatMessage.ChatMessageService;
 import org.example.meetingbe.security.jwt.JwtTokenProvider;
 import org.example.meetingbe.service.meeting.*;
 import org.springframework.stereotype.Component;
@@ -21,13 +23,15 @@ public class WebSocketHandler extends TextWebSocketHandler {
     private final MeetingRolesService roles;
     private final JwtTokenProvider jwt;
     private final ObjectMapper mapper;
+    private final ChatMessageService chat;
 
     public WebSocketHandler(MeetingRoomSessions sessions, MeetingRolesService roles,
-                            JwtTokenProvider jwt, ObjectMapper mapper) {
+                            JwtTokenProvider jwt, ObjectMapper mapper, ChatMessageService chat) {
         this.sessions = sessions;
         this.roles = roles;
         this.jwt = jwt;
         this.mapper = mapper;
+        this.chat = chat;
     }
 
     @Override
@@ -69,7 +73,9 @@ public class WebSocketHandler extends TextWebSocketHandler {
                 signal.remove("token");
                 signal.put("roomId", connection.room());
                 signal.put("senderId", connection.userName());
-                if ("chat-message".equals(type) || "status-update".equals(type)) {
+                if ("chat-message".equals(type)) {
+                    saveAndBroadcastChat(connection, signal.get("message"));
+                } else if ("status-update".equals(type)) {
                     sessions.broadcast(connection.room(), signal);
                 } else {
                     String target = (String) signal.get("targetParticipantId");
@@ -83,6 +89,27 @@ public class WebSocketHandler extends TextWebSocketHandler {
             log.error("Cannot process meeting signal for session {}", socket.getId(), e);
             reject(socket, "Kết nối phòng không hợp lệ. Vui lòng đăng nhập và tham gia lại.");
         }
+    }
+
+    private void saveAndBroadcastChat(MeetingRoomSessions.Connection connection, Object content) {
+        if (!(content instanceof String message) || message.isBlank() || message.length() > 255) {
+            sessions.send(connection, Map.of("type", "chat-error", "roomId", connection.room(),
+                    "message", "Tin nhắn phải có từ 1 đến 255 ký tự."));
+            return;
+        }
+        ChatMessage saved;
+        try {
+            saved = chat.saveChatMessage(connection.room(), connection.userName(), message.strip());
+        } catch (org.springframework.dao.DataAccessException e) {
+            log.error("Cannot save chat message for room {}", connection.room(), e);
+            sessions.send(connection, Map.of("type", "chat-error", "roomId", connection.room(),
+                    "message", "Không lưu được tin nhắn. Vui lòng thử lại."));
+            return;
+        }
+        sessions.broadcast(connection.room(), Map.of(
+                "type", "chat-message", "roomId", saved.getRoomId(), "id", saved.getId(),
+                "senderId", saved.getSenderId(), "message", saved.getMessage(),
+                "timestamp", saved.getTimestamp().toString()));
     }
 
     private void reject(WebSocketSession socket, String reason) throws Exception {

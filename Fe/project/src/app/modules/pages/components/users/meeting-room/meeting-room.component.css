@@ -427,3 +427,84 @@ app-meeting-participants { flex: 0 0 auto; margin: 10px; overflow-y: auto; }
 @media (max-width: 768px) {
   .ai-panel.open { width: 100%; }
 }
+
+.meeting-note-panel {
+  position: fixed;
+  right: 1rem;
+  bottom: 5.5rem;
+  z-index: 30;
+  width: min(22rem, calc(100vw - 2rem));
+  max-height: calc(100vh - 6.5rem);
+  overflow: auto;
+  padding: 1rem;
+  color: #202124;
+  background: #fff;
+  border-radius: 0.75rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+}
+
+.meeting-note-positioned {
+  right: auto;
+  bottom: auto;
+}
+
+.meeting-note-handle {
+  flex: 1;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.meeting-note-handle:active {
+  cursor: grabbing;
+}
+
+.meeting-note-panel .toggle-chat-btn {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border-radius: 0.5rem;
+  font-size: 1.25rem;
+  line-height: 1;
+  transition: background-color 150ms ease, color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+}
+
+.meeting-note-panel .toggle-chat-btn:hover,
+.meeting-note-panel .toggle-chat-btn:focus-visible {
+  background-color: #d93025;
+  color: #fff;
+  box-shadow: 0 3px 8px rgba(217, 48, 37, 0.35);
+  transform: translateY(-2px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .meeting-note-panel .toggle-chat-btn {
+    transition: none;
+  }
+
+  .meeting-note-panel .toggle-chat-btn:hover,
+  .meeting-note-panel .toggle-chat-btn:focus-visible {
+    transform: none;
+  }
+}
+
+.meeting-note-panel textarea {
+  display: block;
+  width: 100%;
+  margin: 0.4rem 0 0.75rem;
+  resize: vertical;
+}
+
+.meeting-note-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.meeting-note-actions .btn {
+  padding: 0.45rem 0.75rem;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+}

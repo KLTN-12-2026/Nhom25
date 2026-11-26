@@ -149,6 +149,18 @@
           <button type="button" class="btn btn-danger d-flex align-items-center gap-2" (click)="summarizeByAI()" [disabled]="aiLoading || aiReading || !selectedFile">
             <i class="bi bi-stars"></i> Tóm tắt bằng AI
           </button>
+          <div class="position-relative">
+            <button type="button" class="btn btn-danger d-flex align-items-center gap-2"
+              [disabled]="downloadingMeetingText" [attr.aria-expanded]="showDownloadFormats"
+              (click)="showDownloadFormats = !showDownloadFormats">
+              <i class="bi bi-download" aria-hidden="true"></i>
+              {{ downloadingMeetingText ? 'Đang tải…' : 'Tải ghi chú và chat' }}
+            </button>
+            <div *ngIf="showDownloadFormats" class="dropdown-menu show position-absolute bottom-100 mb-1">
+              <button type="button" class="dropdown-item" (click)="downloadMeetingText('docx')">Word (.docx)</button>
+              <button type="button" class="dropdown-item" (click)="downloadMeetingText('txt')">Notepad (.txt)</button>
+            </div>
+          </div>
           <button type="submit" class="btn btn-danger d-flex align-items-center gap-2" [disabled]="!selectedFile"
             data-bs-dismiss="modal">
             <i class="bi bi-upload"></i> Lưu bản ghi
