@@ -2,6 +2,7 @@ import { Component, OnInit, OnDestroy, ViewChild, ElementRef, ChangeDetectorRef 
 import { ActivatedRoute, Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import RecordRTC from 'recordrtc';
+import { avatarColor, avatarInitial } from '../participant-avatar';
 import { JwtService } from 'src/app/services/jwt.service';
 import { MeetingService } from 'src/app/services/meeting.service';
 import { MeetingRolesDto, MeetingRoleCommand } from 'src/app/models/DTO/MeetingRolesDto';
@@ -120,6 +121,8 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
   private screenRequestVersion = 0;
   private rolesRefreshTimer: any;
   isParticipantsOpen = false;
+  participantsPosition: { x: number; y: number } | null = null;
+  participantsDragOffset: { x: number; y: number } | null = null;
   roleBusy = false;
   unmuteRequest = '';
   private leaving = false;
@@ -976,7 +979,9 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
 
     peerConnection.onconnectionstatechange = () => {
       console.log(`Peer ${peerId} connection state: ${peerConnection.connectionState}`);
-      if (peerConnection.connectionState === 'disconnected' || peerConnection.connectionState === 'closed') {
+      if (peerConnection.connectionState === 'connected' && (!this.videoEnabled || !this.micEnabled)) {
+        this.sendStatusUpdate();
+      } else if (peerConnection.connectionState === 'disconnected' || peerConnection.connectionState === 'closed') {
         console.log(`Peer ${peerId} connection ${peerConnection.connectionState}, cleaning up`);
         this.cleanupPeer(peerId);
       } else if (peerConnection.connectionState === 'failed') {
@@ -1049,6 +1054,21 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
     return member && member.role === 'HOST' ? 'Host' : member && member.role === 'CO_HOST' ? 'Co-Host' : '';
   }
 
+  participantDisplayName(name: string): string {
+    const member = this.roles?.participants.find(participant => participant.userName === name);
+    return member?.displayName?.trim() || name?.trim() || '';
+  }
+
+  avatarInitial(name: string): string {
+    return avatarInitial(this.participantDisplayName(name), name);
+  }
+
+  googleAvatarUrl(name: string): string | null {
+    return this.roles?.participants.find(participant => participant.userName === name)?.googleAvatarUrl || null;
+  }
+
+  readonly avatarColor = avatarColor;
+
   refreshRoles(): void {
     if (this.leaving) return;
     this.meetingService.getRoles(this.roomId).subscribe(state => this.applyRoles(state), err => {
@@ -1064,6 +1084,45 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
   toggleParticipants(): void {
     this.isParticipantsOpen = !this.isParticipantsOpen;
     if (this.isParticipantsOpen) this.refreshRoles();
+  }
+
+  startParticipantsDrag(event: PointerEvent, panel: HTMLElement): void {
+    if (!event.isPrimary || event.button !== 0) return;
+    const bounds = panel.getBoundingClientRect();
+    (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+    this.participantsDragOffset = { x: event.clientX - bounds.left, y: event.clientY - bounds.top };
+  }
+
+  moveParticipantsDrag(event: PointerEvent, panel: HTMLElement): void {
+    const offset = this.participantsDragOffset;
+    if (!offset || !(event.currentTarget as HTMLElement).hasPointerCapture(event.pointerId)) return;
+    this.setParticipantsPosition(event.clientX - offset.x, event.clientY - offset.y, panel);
+  }
+
+  moveParticipantsWithKey(event: KeyboardEvent, panel: HTMLElement): void {
+    const steps: { [key: string]: { x: number; y: number } } = {
+      ArrowLeft: { x: -16, y: 0 },
+      ArrowRight: { x: 16, y: 0 },
+      ArrowUp: { x: 0, y: -16 },
+      ArrowDown: { x: 0, y: 16 }
+    };
+    const step = steps[event.key];
+    if (!step) return;
+    event.preventDefault();
+    const bounds = panel.getBoundingClientRect();
+    this.setParticipantsPosition(bounds.left + step.x, bounds.top + step.y, panel);
+  }
+
+  fitParticipantsPopover(panel: HTMLElement): void {
+    if (!this.participantsPosition) return;
+    this.setParticipantsPosition(this.participantsPosition.x, this.participantsPosition.y, panel);
+  }
+
+  private setParticipantsPosition(x: number, y: number, panel: HTMLElement): void {
+    this.participantsPosition = {
+      x: Math.max(0, Math.min(x, document.documentElement.clientWidth - panel.offsetWidth)),
+      y: Math.max(0, Math.min(y, document.documentElement.clientHeight - panel.offsetHeight))
+    };
   }
 
   private applyRoles(state: MeetingRolesDto): void {

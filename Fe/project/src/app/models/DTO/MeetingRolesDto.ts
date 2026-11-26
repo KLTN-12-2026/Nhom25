@@ -6,6 +6,7 @@ export interface MeetingParticipant {
   userId: number;
   userName: string;
   displayName: string;
+  googleAvatarUrl?: string | null;
   role: MeetingRole;
 }
 

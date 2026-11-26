@@ -31,14 +31,23 @@
     <button type="button" (click)="unmuteRequest = ''">Bỏ qua</button>
   </div>
   <div class="main-content">
+    <ng-template #cameraAvatar let-name>
+      <span class="camera-avatar" [style.background-color]="avatarColor(name)"
+        role="img" [attr.aria-label]="participantDisplayName(name) + ' đã tắt camera'">
+        {{ avatarInitial(name) }}
+        <img *ngIf="googleAvatarUrl(name) as url" #avatarImage [src]="url" alt="" hidden
+          referrerpolicy="no-referrer" (load)="avatarImage.hidden = false" (error)="avatarImage.hidden = true">
+      </span>
+    </ng-template>
     <!-- Video Grid -->
     <div class="video-grid">
       <!-- Local Video (Camera) -->
       <div class="video-container">
         <video autoplay playsinline id="localVideo" muted></video>
-        <div class="video-overlay" *ngIf="!videoEnabled || !micEnabled">
-          <i class="fas fa-video-slash" *ngIf="!videoEnabled"></i>
-          <i class="fas fa-microphone-slash" *ngIf="!micEnabled"></i>
+        <div class="video-overlay" *ngIf="!videoEnabled || !micEnabled" [class.camera-off]="!videoEnabled">
+          <ng-container *ngIf="!videoEnabled"
+            [ngTemplateOutlet]="cameraAvatar" [ngTemplateOutletContext]="{ $implicit: participantId }"></ng-container>
+          <i class="fas fa-microphone-slash" *ngIf="!micEnabled" aria-label="Đã tắt micro"></i>
         </div>
         <div class="video-label">Bạn (Camera) <strong>{{ roleLabel(participantId) }}</strong></div>
       </div>
@@ -50,17 +59,15 @@
       <!-- Peer Videos -->
       <div class="video-container" *ngFor="let peer of peers; trackBy: trackByPeerId">
         <video autoplay playsinline [id]="'peerVideo-' + peer.id"></video>
-        <div class="video-overlay" *ngIf="!peer.videoEnabled || !peer.micEnabled">
-          <i class="fas fa-video-slash" *ngIf="!peer.videoEnabled"></i>
-          <i class="fas fa-microphone-slash" *ngIf="!peer.micEnabled"></i>
+        <div class="video-overlay" *ngIf="!peer.videoEnabled || !peer.micEnabled" [class.camera-off]="!peer.videoEnabled">
+          <ng-container *ngIf="!peer.videoEnabled"
+            [ngTemplateOutlet]="cameraAvatar" [ngTemplateOutletContext]="{ $implicit: peer.id }"></ng-container>
+          <i class="fas fa-microphone-slash" *ngIf="!peer.micEnabled" aria-label="Đã tắt micro"></i>
         </div>
         <div class="video-label">{{ peer.id }} <strong>{{ roleLabel(peer.id) }}</strong></div>
       </div>
     </div>
 
-    <app-meeting-participants *ngIf="isParticipantsOpen" [state]="roles" [myName]="participantId"
-      [busy]="roleBusy" [loading]="rolesLoading" [error]="rolesError"
-      (retry)="refreshRoles()" (command)="changeMeetingRole($event)"></app-meeting-participants>
     <section class="chat-panel ai-panel" [class.open]="isAiOpen" [attr.aria-hidden]="!isAiOpen">
       <div class="chat-header">
         <strong>Trợ lý AI · DTU MEET</strong>
@@ -151,11 +158,36 @@
 
   <!-- Control Bar -->
   <div class="control-bar">
-    <button type="button" class="control-btn" (click)="toggleParticipants()"
-      title="Người tham gia" [attr.aria-expanded]="isParticipantsOpen">
-      <i class="fas fa-users"></i>
+    <button #participantsButton type="button" class="control-btn participants-trigger"
+      (click)="toggleParticipants()" [class.active]="isParticipantsOpen"
+      (keydown.escape)="isParticipantsOpen = false"
+      title="Người tham gia" aria-label="Người tham gia" [attr.aria-expanded]="isParticipantsOpen"
+      [attr.aria-controls]="isParticipantsOpen ? 'meeting-participants-popover' : null">
+      <i class="fas fa-users" aria-hidden="true"></i>
       <span>{{ roles ? roles.participants.length : '' }}</span>
     </button>
+    <section *ngIf="isParticipantsOpen" #participantsPopover
+      id="meeting-participants-popover" class="participants-popover"
+      [class.participants-positioned]="participantsPosition"
+      [style.left.px]="participantsPosition?.x" [style.top.px]="participantsPosition?.y"
+      (window:resize)="fitParticipantsPopover(participantsPopover)"
+      aria-label="Danh sách người tham gia"
+      (keydown.escape)="isParticipantsOpen = false; participantsButton.focus()">
+      <button type="button" class="participants-drag-handle"
+        aria-label="Di chuyển danh sách người tham gia bằng các phím mũi tên"
+        title="Kéo để di chuyển"
+        (pointerdown)="startParticipantsDrag($event, participantsPopover)"
+        (pointermove)="moveParticipantsDrag($event, participantsPopover)"
+        (lostpointercapture)="participantsDragOffset = null"
+        (keydown)="moveParticipantsWithKey($event, participantsPopover)">
+        <i class="fas fa-grip-lines" aria-hidden="true"></i>
+      </button>
+      <button type="button" class="participants-close" aria-label="Đóng danh sách người tham gia"
+        (click)="isParticipantsOpen = false; participantsButton.focus()">×</button>
+      <app-meeting-participants [state]="roles" [myName]="participantId"
+        [busy]="roleBusy" [loading]="rolesLoading" [error]="rolesError"
+        (retry)="refreshRoles()" (command)="changeMeetingRole($event)"></app-meeting-participants>
+    </section>
     <button class="control-btn" [ngClass]="{'active': !micEnabled}" (click)="toggleMic()"
       title="{{ micEnabled ? 'Tắt mic' : 'Bật mic' }}">
       <i class="fas" [ngClass]="micEnabled ? 'fa-microphone' : 'fa-microphone-slash'"></i>

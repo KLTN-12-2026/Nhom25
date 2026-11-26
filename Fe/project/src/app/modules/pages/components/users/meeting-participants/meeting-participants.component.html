@@ -9,14 +9,18 @@
     <p class="help">Host rời phòng sẽ chuyển quyền cho Co-Host. Người tạo phòng được khôi phục Host khi tham gia lại.</p>
     <ul>
       <li *ngFor="let member of state.participants">
-        <ng-template #identity>
-          <span class="member-info">
-            <span class="member-name">{{ member.displayName }} <span *ngIf="member.userName === myName">(Bạn)</span></span>
-            <span class="role-label" [class.host]="member.role === 'HOST'" [class.co-host]="member.role === 'CO_HOST'">{{ roleName(member.role) }}</span>
-          </span>
-        </ng-template>
         <div class="member-static">
-          <ng-container *ngTemplateOutlet="identity"></ng-container>
+          <span class="member-identity">
+            <span class="member-avatar" [style.background-color]="avatarColor(member.userName)" aria-hidden="true">
+              {{ avatarInitial(member.displayName, member.userName) }}
+              <img *ngIf="member.googleAvatarUrl as url" #avatarImage [src]="url" alt="" hidden
+                referrerpolicy="no-referrer" (load)="avatarImage.hidden = false" (error)="avatarImage.hidden = true">
+            </span>
+            <span class="member-info">
+              <span class="member-name">{{ member.displayName || member.userName }} <span *ngIf="member.userName === myName">(Bạn)</span></span>
+              <span class="role-label" [class.host]="member.role === 'HOST'" [class.co-host]="member.role === 'CO_HOST'">{{ roleName(member.role) }}</span>
+            </span>
+          </span>
           <button type="button" class="member-toggle" *ngIf="canManage(member)" [disabled]="busy"
             [attr.aria-expanded]="openMenuId === member.userId" [attr.aria-controls]="'member-actions-' + member.userId"
             [attr.aria-label]="'Thao tác với ' + member.displayName" (click)="toggleMenu(member)">

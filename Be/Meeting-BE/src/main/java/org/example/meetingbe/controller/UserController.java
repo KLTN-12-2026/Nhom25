@@ -141,6 +141,10 @@ public class UserController {
             user = userRepo.save(user);
         } else {
             user = optionalUser.get();
+            if ((user.getAvatar() == null || user.getAvatar().isBlank()) && picture != null && !picture.isBlank()) {
+                user.setAvatar(picture);
+                user = userRepo.save(user);
+            }
         }
         Optional<User> userAfterSave = userService.findByEmail(email);
         try {

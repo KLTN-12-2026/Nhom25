@@ -1,4 +1,5 @@
 import { Component, ElementRef, EventEmitter, HostListener, Input, Output } from '@angular/core';
+import { avatarColor, avatarInitial } from '../participant-avatar';
 import { MeetingAction, MeetingParticipant, MeetingRoleCommand, MeetingRolesDto } from 'src/app/models/DTO/MeetingRolesDto';
 
 @Component({
@@ -17,6 +18,8 @@ export class MeetingParticipantsComponent {
   pending: MeetingRoleCommand | null = null;
   confirmation = '';
   openMenuId: number | null = null;
+  readonly avatarColor = avatarColor;
+  readonly avatarInitial = avatarInitial;
 
   constructor(private element: ElementRef) {}
 
@@ -30,7 +33,17 @@ export class MeetingParticipantsComponent {
     if (!this.element.nativeElement.contains(event.target)) this.closeMenu();
   }
 
-  @HostListener('keydown.escape')
+  @HostListener('keydown.escape', ['$event'])
+  onEscape(event: KeyboardEvent): void {
+    if (this.pending) {
+      this.pending = null;
+      event.stopPropagation();
+    } else if (this.openMenuId !== null) {
+      this.closeMenu();
+      event.stopPropagation();
+    }
+  }
+
   closeMenu(): void {
     this.openMenuId = null;
   }

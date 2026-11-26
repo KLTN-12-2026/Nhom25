@@ -112,8 +112,12 @@ public class MeetingRolesService {
                             : id.equals(coHostId(meeting)) ? "CO_HOST" : "PARTICIPANT";
                     String display = (Objects.toString(member.getFirstName(), "") + " "
                             + Objects.toString(member.getLastName(), "")).trim();
+                    String avatar = member.getAvatar();
+                    String googleAvatarUrl = "google".equals(member.getProvider()) && avatar != null
+                            && avatar.matches("https://(?:[a-zA-Z0-9-]+\\.)+googleusercontent\\.com/\\S+")
+                            ? avatar : null;
                     return new MeetingRolesDto.Member(id, member.getUserName(),
-                            display.isBlank() ? member.getUserName() : display, role);
+                            display.isBlank() ? member.getUserName() : display, role, googleAvatarUrl);
                 }).toList();
         return new MeetingRolesDto(meeting.getId(), meeting.getCode(), meeting.getCreator().getId(),
                 meeting.getUser().getId(), coHostId(meeting), meeting.getRolesVersion(),
