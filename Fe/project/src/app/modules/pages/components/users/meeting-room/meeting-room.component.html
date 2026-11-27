@@ -73,7 +73,7 @@
         <strong>Trợ lý AI · DTU MEET</strong>
         <button class="toggle-chat-btn" (click)="toggleAi()" aria-label="Đóng trợ lý AI">×</button>
       </div>
-      <p class="ai-notice">Chat riêng · Chỉ hỗ trợ dự án DTU MEET. AI chưa nghe nội dung cuộc họp.</p>
+      <p class="ai-notice">Chat riêng · Trợ lý dùng ghi chú cá nhân đã lưu trong phòng này và các cuộc họp trước để trả lời qua Gemini.</p>
       <div class="chat-messages" #aiMessagesContainer role="log" aria-live="polite">
         <p *ngIf="!aiMessages.length">Bạn có thể hỏi: “Làm sao chia sẻ màn hình?” hoặc “Tóm tắt AI hoạt động thế nào?”</p>
         <div *ngFor="let message of aiMessages" class="chat-message" [class.mine]="message.role === 'user'">
@@ -87,7 +87,7 @@
       </div>
       <form class="chat-input" (ngSubmit)="sendAiQuestion()">
         <input name="aiQuestion" [(ngModel)]="aiInput" maxlength="2000" aria-label="Câu hỏi cho AI"
-          placeholder="Hỏi về DTU MEET…" [disabled]="aiLoading">
+          placeholder="Hỏi về DTU MEET hoặc ghi chú…" [disabled]="aiLoading">
         <button type="submit" aria-label="Gửi câu hỏi cho AI" [disabled]="aiLoading || !aiReady || !aiInput.trim()">
           <i class="fas fa-paper-plane"></i>
         </button>

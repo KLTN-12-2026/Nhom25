@@ -6,6 +6,7 @@ import jakarta.validation.constraints.Size;
 import org.example.meetingbe.model.*;
 import org.example.meetingbe.repository.*;
 import org.example.meetingbe.service.meetingAi.MeetingAiService;
+import org.example.meetingbe.service.meetingAi.MeetingNoteSearch;
 import org.springframework.http.*;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -22,12 +23,15 @@ public class MeetingAiController {
     private final IMeetingRepo meetings;
     private final IUserRepo users;
     private final IParticipantsRepo participants;
+    private final MeetingNoteRepository notes;
     private final MeetingAiService ai;
     private final Cache<Long, AtomicBoolean> requests = Caffeine.newBuilder()
             .maximumSize(10000).expireAfterAccess(Duration.ofMinutes(5)).build();
 
-    public MeetingAiController(IMeetingRepo meetings, IUserRepo users, IParticipantsRepo participants, MeetingAiService ai) {
+    public MeetingAiController(IMeetingRepo meetings, IUserRepo users, IParticipantsRepo participants,
+                               MeetingNoteRepository notes, MeetingAiService ai) {
         this.meetings = meetings; this.users = users; this.participants = participants; this.ai = ai;
+        this.notes = notes;
     }
     public record Question(@NotBlank @Size(max = 2000) String question) {}
     public record Answer(String answer) {}
@@ -45,7 +49,13 @@ public class MeetingAiController {
         AtomicBoolean busy = requests.get(user.getId(), id -> new AtomicBoolean());
         if (!busy.compareAndSet(false, true)) throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS,
                 "Vui lòng chờ AI trả lời câu hỏi trước.");
-        try { return new Answer(ai.answer(body.question().trim())); }
+        try {
+            String question = body.question().trim();
+            var note = notes.findFirstByMeetingIdAndAuthorIdOrderByIdAsc(meeting.getId(), user.getId());
+            var history = MeetingNoteSearch.find(question,
+                    notes.findPersonalHistory(user.getId(), note.map(MeetingNote::getId).orElse(0L)));
+            return new Answer(ai.answer(question, note.map(MeetingNote::getContent).orElse(""), history));
+        }
         finally { busy.set(false); }
     }
 
