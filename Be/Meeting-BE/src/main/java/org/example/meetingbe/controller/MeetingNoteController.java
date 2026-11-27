@@ -2,6 +2,7 @@ package org.example.meetingbe.controller;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import org.example.meetingbe.model.ChatMessage;
 import org.example.meetingbe.model.Meeting;
@@ -63,6 +64,40 @@ public class MeetingNoteController {
         return chat.getChatHistory(meeting.getCode());
     }
 
+    @GetMapping("/entries")
+    @Transactional(readOnly = true)
+    public List<Entry> list(@PathVariable String roomCode, Authentication auth) {
+        User author = author(auth);
+        Meeting meeting = meetings.findByCode(roomCode);
+        requireAccess(meeting, author);
+        return notes.findAllByMeetingIdAndAuthorIdOrderByIdAsc(meeting.getId(), author.getId())
+                .stream().map(Entry::from).toList();
+    }
+
+    @PostMapping("/entries")
+    @Transactional
+    public Entry create(@PathVariable String roomCode, @Valid @RequestBody NewNote request, Authentication auth) {
+        User author = author(auth);
+        Meeting meeting = meetings.findByCode(roomCode);
+        requireAccess(meeting, author);
+        MeetingNote note = new MeetingNote(meeting, author);
+        note.setContent(request.content());
+        return Entry.from(notes.save(note));
+    }
+
+    @PutMapping("/entries/{id}")
+    @Transactional
+    public Entry update(@PathVariable String roomCode, @PathVariable Long id,
+                        @Valid @RequestBody Note request, Authentication auth) {
+        User author = author(auth);
+        Meeting meeting = meetings.findByCode(roomCode);
+        requireAccess(meeting, author);
+        MeetingNote note = notes.findByIdAndMeetingIdAndAuthorId(id, meeting.getId(), author.getId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        note.setContent(request.content());
+        return Entry.from(note);
+    }
+
     @GetMapping("/export")
     @Transactional(readOnly = true)
     public ResponseEntity<byte[]> export(@PathVariable String roomCode,
@@ -71,13 +106,18 @@ public class MeetingNoteController {
         Meeting meeting = meetings.findByCode(roomCode);
         requireAccess(meeting, author);
 
-        String note = noteContent(meeting, author);
+        var entries = notes.findAllByMeetingIdAndAuthorIdOrderByIdAsc(meeting.getId(), author.getId())
+                .stream().map(MeetingNote::getContent).filter(content -> !content.isBlank()).toList();
         StringBuilder text = new StringBuilder("CUỘC HỌP: ")
                 .append(meeting.getTitle() == null ? meeting.getCode() : meeting.getTitle())
                 .append("\r\nMã phòng: ").append(meeting.getCode())
-                .append("\r\n\r\nGHI CHÚ CÁ NHÂN\r\n")
-                .append(note.isBlank() ? "(Chưa có ghi chú)" : note)
-                .append("\r\n\r\nLỊCH SỬ CHAT (giờ máy chủ)\r\n");
+                .append("\r\n\r\nGHI CHÚ CÁ NHÂN\r\n");
+        if (entries.isEmpty()) text.append("(Chưa có ghi chú)");
+        for (int i = 0; i < entries.size(); i++) {
+            if (entries.size() > 1) text.append("\r\nGhi chú ").append(i + 1).append("\r\n");
+            text.append(entries.get(i)).append("\r\n");
+        }
+        text.append("\r\nLỊCH SỬ CHAT (giờ máy chủ)\r\n");
         List<ChatMessage> messages = chat.getChatHistory(meeting.getCode());
         if (messages.isEmpty()) {
             text.append("(Chưa có tin nhắn)\r\n");
@@ -112,7 +152,7 @@ public class MeetingNoteController {
     }
 
     private String noteContent(Meeting meeting, User author) {
-        return notes.findByMeetingIdAndAuthorId(meeting.getId(), author.getId())
+        return notes.findFirstByMeetingIdAndAuthorIdOrderByIdAsc(meeting.getId(), author.getId())
                 .map(MeetingNote::getContent).orElse("");
     }
 
@@ -123,7 +163,7 @@ public class MeetingNoteController {
         // Serialize the first insert when the same note is saved from multiple tabs.
         Meeting meeting = meetings.findForUpdate(roomCode).orElse(null);
         requireAccess(meeting, author);
-        MeetingNote note = notes.findByMeetingIdAndAuthorId(meeting.getId(), author.getId())
+        MeetingNote note = notes.findFirstByMeetingIdAndAuthorIdOrderByIdAsc(meeting.getId(), author.getId())
                 .orElseGet(() -> new MeetingNote(meeting, author));
         note.setContent(request.content());
         notes.save(note);
@@ -154,4 +194,10 @@ public class MeetingNoteController {
     }
 
     public record Note(@NotNull @Size(max = 10000) String content) {}
+    public record NewNote(@NotBlank @Size(max = 10000) String content) {}
+    public record Entry(Long id, String content) {
+        static Entry from(MeetingNote note) {
+            return new Entry(note.getId(), note.getContent());
+        }
+    }
 }

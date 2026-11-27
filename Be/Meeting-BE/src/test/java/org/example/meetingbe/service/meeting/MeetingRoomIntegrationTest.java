@@ -40,6 +40,7 @@ class MeetingRoomIntegrationTest {
     void cleanup() {
         if (room != null) sessions.closeUser(room, null);
         if (meetingId != null) {
+            jdbc.update("delete from meeting_note where meeting_id = ?", meetingId);
             jdbc.update("delete from meeting_role_history where meeting_id = ?", meetingId);
             jdbc.update("delete from participants where meeting_id = ?", meetingId);
             jdbc.update("delete from meeting where id = ?", meetingId);
@@ -92,6 +93,45 @@ class MeetingRoomIntegrationTest {
         body.put("version", version);
         body.put("targetUserId", target == null ? null : target.getId());
         return request("POST", path("/actions/" + action), token(actor), body);
+    }
+
+    @Test
+    void personalNoteCanBeCreatedUpdatedAndRead() throws Exception {
+        User creator = account();
+        String authorization = token(creator);
+        HttpResponse<String> created = request("POST", "/api/meetings", authorization,
+                Map.of("title", "Meeting note integration fixture"));
+        assertEquals(200, created.statusCode(), created.body());
+        JsonNode createdRoom = mapper.readTree(created.body());
+        meetingId = createdRoom.path("id").asLong();
+        room = createdRoom.path("code").asText();
+
+        HttpResponse<String> saved = request("PUT", path("/note"), authorization, Map.of("content", "First note"));
+        assertEquals(200, saved.statusCode(), saved.body());
+        String updatedContent = "Ghi chú đã cập nhật";
+        HttpResponse<String> updated = request("PUT", path("/note"), authorization, Map.of("content", updatedContent));
+        assertEquals(200, updated.statusCode(), updated.body());
+
+        HttpResponse<String> loaded = request("GET", path("/note"), authorization, null);
+        assertEquals(200, loaded.statusCode(), loaded.body());
+        assertEquals(updatedContent, mapper.readTree(loaded.body()).path("content").asText());
+
+        HttpResponse<String> added = request("POST", path("/note/entries"), authorization, Map.of("content", "Ghi chú thứ hai"));
+        assertEquals(200, added.statusCode(), added.body());
+        long secondId = mapper.readTree(added.body()).path("id").asLong();
+        HttpResponse<String> edited = request("PUT", path("/note/entries/" + secondId), authorization,
+                Map.of("content", "Ghi chú thứ hai đã sửa"));
+        assertEquals(200, edited.statusCode(), edited.body());
+        HttpResponse<String> listed = request("GET", path("/note/entries"), authorization, null);
+        assertEquals(200, listed.statusCode(), listed.body());
+        JsonNode entries = mapper.readTree(listed.body());
+        assertEquals(2, entries.size());
+        assertEquals(updatedContent, entries.get(0).path("content").asText());
+        assertEquals("Ghi chú thứ hai đã sửa", entries.get(1).path("content").asText());
+        HttpResponse<String> exported = request("GET", path("/note/export"), authorization, null);
+        assertEquals(200, exported.statusCode(), exported.body());
+        assertTrue(exported.body().contains(updatedContent));
+        assertTrue(exported.body().contains("Ghi chú thứ hai đã sửa"));
     }
 
     @Test

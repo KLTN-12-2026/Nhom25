@@ -5,6 +5,11 @@ import { tap } from 'rxjs/operators';
 import { JwtService } from './jwt.service';
 import { MeetingRolesDto, MeetingRoleCommand } from '../models/DTO/MeetingRolesDto';
 
+export interface MeetingNoteEntry {
+  id: number;
+  content: string;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -15,14 +20,17 @@ export class MeetingService {
 
   constructor(private http: HttpClient, private jwt: JwtService) { }
 
-  getNote(roomCode: string): Observable<{ content: string }> {
-    return this.http.get<{ content: string }>(this.noteUrl(roomCode),
+  getNotes(roomCode: string): Observable<MeetingNoteEntry[]> {
+    return this.http.get<MeetingNoteEntry[]>(this.noteUrl(roomCode) + '/entries',
       { headers: this.jwt.generateHeader() });
   }
 
-  saveNote(roomCode: string, content: string): Observable<{ content: string }> {
-    return this.http.put<{ content: string }>(this.noteUrl(roomCode), { content },
-      { headers: this.jwt.generateHeader() });
+  saveNote(roomCode: string, id: number | null, content: string): Observable<MeetingNoteEntry> {
+    const url = this.noteUrl(roomCode) + '/entries';
+    const options = { headers: this.jwt.generateHeader() };
+    return id === null
+      ? this.http.post<MeetingNoteEntry>(url, { content }, options)
+      : this.http.put<MeetingNoteEntry>(`${url}/${id}`, { content }, options);
   }
 
   downloadMeetingText(roomCode: string, format: 'txt' | 'docx'): Observable<Blob> {

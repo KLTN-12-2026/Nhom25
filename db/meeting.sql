@@ -309,14 +309,17 @@ USE `meeting`;
        foreign key (user_id) 
        references user (id);
 
--- Personal notes, one per meeting and author.
+-- Personal notes.
 CREATE TABLE IF NOT EXISTS `meeting_note` (
     `id` BIGINT NOT NULL AUTO_INCREMENT,
     `meeting_id` BIGINT NOT NULL,
     `author_id` BIGINT NOT NULL,
     `content` TEXT NOT NULL,
+    `title` VARCHAR(160) NOT NULL DEFAULT '',
+    `updated_at` DATETIME(6),
+    `version` BIGINT NOT NULL DEFAULT 0,
     PRIMARY KEY (`id`),
-    UNIQUE KEY `uk_meeting_note_meeting_author` (`meeting_id`, `author_id`),
+    KEY `idx_meeting_note_room_author` (`meeting_id`, `author_id`),
     CONSTRAINT `fk_meeting_note_meeting` FOREIGN KEY (`meeting_id`) REFERENCES `meeting` (`id`),
     CONSTRAINT `fk_meeting_note_author` FOREIGN KEY (`author_id`) REFERENCES `user` (`id`)
 ) ENGINE=InnoDB;

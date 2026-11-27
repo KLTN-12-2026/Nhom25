@@ -4,7 +4,7 @@ import { HttpClient } from '@angular/common/http';
 import RecordRTC from 'recordrtc';
 import { avatarColor, avatarInitial } from '../participant-avatar';
 import { JwtService } from 'src/app/services/jwt.service';
-import { MeetingService } from 'src/app/services/meeting.service';
+import { MeetingNoteEntry, MeetingService } from 'src/app/services/meeting.service';
 import { MeetingRolesDto, MeetingRoleCommand } from 'src/app/models/DTO/MeetingRolesDto';
 import { ToastrService } from 'ngx-toastr';
 import { ParticipantsService } from 'src/app/services/participants.service';
@@ -639,6 +639,8 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
   noteBusy = false;
   noteContent = '';
   savedNote = '';
+  noteEntries: MeetingNoteEntry[] = [];
+  selectedNoteId: number | null = null;
   noteStatus = '';
   downloadingMeetingText = false;
   showDownloadFormats = false;
@@ -717,8 +719,9 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
     if (this.isNoteOpen && !this.noteLoaded && !this.noteBusy) {
       this.noteBusy = true;
       this.noteStatus = 'Đang tải ghi chú…';
-      this.meetingService.getNote(this.roomId).subscribe(note => {
-        this.noteContent = this.savedNote = note.content;
+      this.meetingService.getNotes(this.roomId).subscribe(entries => {
+        this.noteEntries = entries;
+        this.selectNote(entries[0]?.id ?? null);
         this.noteLoaded = true;
         this.noteBusy = false;
         this.noteStatus = '';
@@ -729,14 +732,25 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
     }
   }
 
+  selectNote(id: number | null): void {
+    this.selectedNoteId = id;
+    this.noteContent = this.savedNote = this.noteEntries.find(note => note.id === id)?.content ?? '';
+    this.noteStatus = '';
+    this.showDownloadFormats = false;
+  }
+
   saveNote(): void {
-    if (!this.noteLoaded || this.noteBusy) {
+    if (!this.noteLoaded || this.noteBusy || this.noteContent === this.savedNote
+      || (this.selectedNoteId === null && !this.noteContent.trim())) {
       return;
     }
     this.noteBusy = true;
     this.noteStatus = 'Đang lưu…';
-    this.meetingService.saveNote(this.roomId, this.noteContent).subscribe(note => {
-      this.savedNote = note.content;
+    this.meetingService.saveNote(this.roomId, this.selectedNoteId, this.noteContent).subscribe(note => {
+      this.noteEntries = this.selectedNoteId === null
+        ? [...this.noteEntries, note]
+        : this.noteEntries.map(entry => entry.id === note.id ? note : entry);
+      this.selectNote(note.id);
       this.noteBusy = false;
       this.noteStatus = 'Đã lưu ghi chú.';
     }, () => {

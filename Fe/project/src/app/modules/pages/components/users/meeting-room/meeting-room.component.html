@@ -110,18 +110,32 @@
         </strong>
         <button type="button" class="toggle-chat-btn" (click)="toggleNote()" aria-label="Đóng ghi chú">×</button>
       </div>
+      <div *ngIf="noteLoaded && noteEntries.length" class="meeting-note-actions mb-2">
+        <label for="meeting-note-entry">Ghi chú đã lưu</label>
+        <select id="meeting-note-entry" class="form-select" [ngModel]="selectedNoteId"
+          (ngModelChange)="selectNote($event)" [disabled]="noteBusy || noteContent !== savedNote">
+          <option [ngValue]="null" disabled>Ghi chú mới</option>
+          <option *ngFor="let note of noteEntries; index as i" [ngValue]="note.id">
+            {{ i + 1 }}. {{ note.content.trim() | slice:0:55 }}
+          </option>
+        </select>
+        <button type="button" class="btn btn-outline-danger" (click)="selectNote(null)"
+          [disabled]="noteBusy || selectedNoteId === null || noteContent !== savedNote">+ Ghi chú mới</button>
+      </div>
       <label for="meeting-note">Nội dung ghi chú</label>
       <textarea id="meeting-note" [(ngModel)]="noteContent" rows="7" maxlength="10000"
         [disabled]="!noteLoaded || noteBusy"></textarea>
       <div class="meeting-note-actions">
         <button type="button" class="btn btn-danger" (click)="saveNote()"
-          [disabled]="!noteLoaded || noteBusy || noteContent === savedNote">
+          [disabled]="!noteLoaded || noteBusy || noteContent === savedNote || (selectedNoteId === null && !noteContent.trim())">
           Lưu ghi chú
         </button>
+        <button *ngIf="noteContent !== savedNote" type="button" class="btn btn-outline-secondary"
+          (click)="selectNote(selectedNoteId)" [disabled]="noteBusy">Hủy thay đổi</button>
         <button type="button" class="btn btn-danger" (click)="showDownloadFormats = !showDownloadFormats"
           [attr.aria-expanded]="showDownloadFormats"
           [disabled]="!noteLoaded || noteBusy || downloadingMeetingText || noteContent !== savedNote">
-          {{ downloadingMeetingText ? 'Đang tải…' : 'Tải ghi chú và chat' }}
+          {{ downloadingMeetingText ? 'Đang tải…' : 'Tải mọi ghi chú và chat' }}
         </button>
       </div>
       <div *ngIf="showDownloadFormats && noteContent === savedNote && !noteBusy" class="mt-2">
