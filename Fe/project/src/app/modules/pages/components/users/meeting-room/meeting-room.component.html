@@ -172,14 +172,17 @@
 
   <!-- Control Bar -->
   <div class="control-bar">
-    <button #participantsButton type="button" class="control-btn participants-trigger"
-      (click)="toggleParticipants()" [class.active]="isParticipantsOpen"
-      (keydown.escape)="isParticipantsOpen = false"
-      title="Người tham gia" aria-label="Người tham gia" [attr.aria-expanded]="isParticipantsOpen"
-      [attr.aria-controls]="isParticipantsOpen ? 'meeting-participants-popover' : null">
-      <i class="fas fa-users" aria-hidden="true"></i>
-      <span>{{ roles ? roles.participants.length : '' }}</span>
-    </button>
+    <div class="control-item">
+      <button #participantsButton type="button" class="control-btn participants-trigger"
+        (click)="toggleParticipants()" [class.active]="isParticipantsOpen"
+        (keydown.escape)="isParticipantsOpen = false"
+        title="Người tham gia" aria-label="Người tham gia" [attr.aria-expanded]="isParticipantsOpen"
+        [attr.aria-controls]="isParticipantsOpen ? 'meeting-participants-popover' : null">
+        <i class="fas fa-users" aria-hidden="true"></i>
+        <span>{{ roles ? roles.participants.length : '' }}</span>
+      </button>
+      <span aria-hidden="true">Người tham gia</span>
+    </div>
     <section *ngIf="isParticipantsOpen" #participantsPopover
       id="meeting-participants-popover" class="participants-popover"
       [class.participants-positioned]="participantsPosition"
@@ -202,37 +205,63 @@
         [busy]="roleBusy" [loading]="rolesLoading" [error]="rolesError"
         (retry)="refreshRoles()" (command)="changeMeetingRole($event)"></app-meeting-participants>
     </section>
-    <button class="control-btn" [ngClass]="{'active': !micEnabled}" (click)="toggleMic()"
-      title="{{ micEnabled ? 'Tắt mic' : 'Bật mic' }}">
-      <i class="fas" [ngClass]="micEnabled ? 'fa-microphone' : 'fa-microphone-slash'"></i>
-    </button>
-    <button class="control-btn" [ngClass]="{'active': !videoEnabled}" (click)="toggleVideo()"
-      title="{{ videoEnabled ? 'Tắt video' : 'Bật video' }}">
-      <i class="fas" [ngClass]="videoEnabled ? 'fa-video' : 'fa-video-slash'"></i>
-    </button>
-    <button class="control-btn" [ngClass]="{'active': isScreenSharing}" (click)="toggleScreenShare()"
-      title="{{ isScreenSharing ? 'Dừng chia sẻ màn hình' : 'Chia sẻ màn hình' }}">
-      <i class="fas fa-desktop"></i>
-    </button>
-    <button class="control-btn" [ngClass]="{'active': isRecording}" (click)="toggleRecording()"
-      title="{{ isRecording ? 'Dừng ghi' : 'Bắt đầu ghi' }}">
-      <i class="fas fa-record-vinyl"></i>
-      <span class="recording-indicator" *ngIf="isRecording"></span>
-    </button>
-    <button type="button" class="control-btn" (click)="toggleNote()" [attr.aria-expanded]="isNoteOpen"
-      title="Ghi chú cá nhân" aria-label="Ghi chú cá nhân">
-      <i class="fas fa-sticky-note" aria-hidden="true"></i>
-    </button>
-    <button class="control-btn" (click)="toggleChat()" title="Mở/đóng chat">
-      <i class="fas fa-comments"></i>
-      <span class="new-message-badge" *ngIf="hasNewMessages"></span>
-    </button>
-    <button class="control-btn" [class.active]="isAiOpen" (click)="toggleAi()" title="Trợ lý AI"
-      aria-label="Mở trợ lý AI" [attr.aria-expanded]="isAiOpen">
-      <i class="fas fa-robot"></i>
-    </button>
-    <button class="control-btn disconnect-btn" [disabled]="roleBusy" (click)="disconnect()" title="Rời phòng">
-      <i class="fas fa-sign-out-alt"></i>
-    </button>
+    <div class="control-item">
+      <button type="button" class="control-btn" [class.active]="!micEnabled" (click)="toggleMic()"
+        [attr.aria-label]="micEnabled ? 'Tắt mic' : 'Bật mic'">
+        <i class="fas" [ngClass]="micEnabled ? 'fa-microphone' : 'fa-microphone-slash'" aria-hidden="true"></i>
+      </button>
+      <span aria-hidden="true">{{ micEnabled ? 'Tắt mic' : 'Bật mic' }}</span>
+    </div>
+    <div class="control-item">
+      <button type="button" class="control-btn" [class.active]="!videoEnabled" (click)="toggleVideo()"
+        [attr.aria-label]="videoEnabled ? 'Tắt camera' : 'Bật camera'">
+        <i class="fas" [ngClass]="videoEnabled ? 'fa-video' : 'fa-video-slash'" aria-hidden="true"></i>
+      </button>
+      <span aria-hidden="true">{{ videoEnabled ? 'Tắt camera' : 'Bật camera' }}</span>
+    </div>
+    <div class="control-item">
+      <button type="button" class="control-btn" [class.active]="isScreenSharing" (click)="toggleScreenShare()"
+        [attr.aria-label]="isScreenSharing ? 'Dừng chia sẻ màn hình' : 'Chia sẻ màn hình'">
+        <i class="fas fa-desktop" aria-hidden="true"></i>
+      </button>
+      <span aria-hidden="true">{{ isScreenSharing ? 'Dừng chia sẻ' : 'Chia sẻ màn hình' }}</span>
+    </div>
+    <div class="control-item">
+      <button type="button" class="control-btn" [class.active]="isRecording" (click)="toggleRecording()"
+        [attr.aria-label]="isRecording ? 'Dừng ghi hình' : 'Ghi hình'">
+        <i class="fas fa-record-vinyl" aria-hidden="true"></i>
+        <span class="recording-indicator" *ngIf="isRecording" aria-hidden="true"></span>
+      </button>
+      <span aria-hidden="true">{{ isRecording ? 'Dừng ghi hình' : 'Ghi hình' }}</span>
+    </div>
+    <div class="control-item">
+      <button type="button" class="control-btn" (click)="toggleNote()" [attr.aria-expanded]="isNoteOpen"
+        aria-label="Ghi chú cá nhân">
+        <i class="fas fa-sticky-note" aria-hidden="true"></i>
+      </button>
+      <span aria-hidden="true">Ghi chú</span>
+    </div>
+    <div class="control-item">
+      <button type="button" class="control-btn" (click)="toggleChat()"
+        aria-label="Trò chuyện" [attr.aria-expanded]="isChatOpen">
+        <i class="fas fa-comments" aria-hidden="true"></i>
+        <span class="new-message-badge" *ngIf="hasNewMessages" aria-hidden="true"></span>
+      </button>
+      <span aria-hidden="true">Trò chuyện</span>
+    </div>
+    <div class="control-item">
+      <button type="button" class="control-btn" [class.active]="isAiOpen" (click)="toggleAi()"
+        aria-label="Trợ lý AI" [attr.aria-expanded]="isAiOpen">
+        <i class="fas fa-robot" aria-hidden="true"></i>
+      </button>
+      <span aria-hidden="true">Trợ lý AI</span>
+    </div>
+    <div class="control-item">
+      <button type="button" class="control-btn disconnect-btn" [disabled]="roleBusy" (click)="disconnect()"
+        aria-label="Rời phòng">
+        <i class="fas fa-sign-out-alt" aria-hidden="true"></i>
+      </button>
+      <span aria-hidden="true">Rời phòng</span>
+    </div>
   </div>
 </div>
